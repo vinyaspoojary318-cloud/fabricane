@@ -545,15 +545,11 @@ document.getElementById('manifest-link').href = URL.createObjectURL(blob);
     </div>
     <div class="login-card">
       <h2>Welcome back ✨</h2>
-      <p>Sign in to your workspace</p>
-      <div class="login-user-select">
-        <button class="user-btn active" id="btn-user1" onclick="selectUser(1)">👤 User 1</button>
-        <button class="user-btn" id="btn-user2" onclick="selectUser(2)">👤 User 2</button>
-      </div>
+      <p>Sign in to your shared workspace</p>
       <div class="form-group">
         <label>Password</label>
         <div class="pw-wrap">
-          <input type="password" class="form-input" id="login-pw" placeholder="Enter your password" onkeydown="if(event.key==='Enter')doLogin()">
+          <input type="password" class="form-input" id="login-pw" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
           <button class="pw-toggle" onclick="togglePw('login-pw')">👁</button>
         </div>
       </div>
@@ -861,7 +857,7 @@ function startRealtimeSync() {
 
 function getDefaultStorage() {
   return {
-    passwords: { user1: 'fab2024', user2: 'fab2024' },
+    passwords: { shared: 'fab2024', user1: 'fab2024', user2: 'fab2024' },
     userNames: { user1: 'User 1', user2: 'User 2' },
     products: [],
     influencers: [],
@@ -930,9 +926,7 @@ let lockedUntil = 0;
 let lockoutInterval = null;
 
 function selectUser(n) {
-  selectedUser = n;
-  document.getElementById('btn-user1').classList.toggle('active', n===1);
-  document.getElementById('btn-user2').classList.toggle('active', n===2);
+  // Legacy — not used in single login mode
 }
 
 function togglePw(id) {
@@ -942,23 +936,29 @@ function togglePw(id) {
 
 async function doLogin() {
   if (lockedUntil > Date.now()) return;
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
   await loadStorage();
   const pw = document.getElementById('login-pw').value;
-  const key = 'user' + selectedUser;
-  const correct = pw === (APP.storage.passwords[key] || 'fab2024');
+  // Single shared password — works for both users
+  const sharedPassword = APP.storage.passwords?.shared || APP.storage.passwords?.user1 || 'fab2024';
+  const correct = pw === sharedPassword;
 
   if (correct) {
     loginAttempts = 0;
-    APP.currentUser = key;
-    sessionStorage.setItem('fab_session', JSON.stringify({ user: key, loginAt: Date.now() }));
+    APP.currentUser = 'user1'; // Both use same account
+    sessionStorage.setItem('fab_session', JSON.stringify({ user: 'user1', loginAt: Date.now() }));
     showApp();
   } else {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
     loginAttempts++;
     if (loginAttempts >= 3) {
       lockedUntil = Date.now() + 10 * 60 * 1000;
       startLockout();
     } else {
-      showLoginError(`Wrong password. ${3 - loginAttempts} attempt(s) remaining.`);
+      showLoginError('Wrong password. ' + (3 - loginAttempts) + ' attempt(s) remaining.');
     }
   }
 }
