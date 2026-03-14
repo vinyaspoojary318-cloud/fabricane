@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 <!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-app-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-firestore-compat.min.js"></script>
 
 <style>
 /* ═══════════════════════════════════════════════
@@ -759,15 +759,30 @@ const firebaseConfig = {
 // Firebase will be initialized after SDK loads
 let db = null;
 
-function initFirebase() {
+async function waitForFirebase() {
+  let attempts = 0;
+  while (typeof firebase === 'undefined' && attempts < 30) {
+    await new Promise(r => setTimeout(r, 200));
+    attempts++;
+  }
+  if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded — check internet');
+}
+
+async function initFirebase() {
   try {
+    await waitForFirebase();
     if (!firebase.apps || !firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
     db = firebase.firestore();
+    // Enable offline persistence
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+      console.log('Persistence error:', err.code);
+    });
     console.log('✅ Firebase connected');
   } catch(e) {
     console.error('Firebase init error:', e);
+    throw e;
   }
 }
 
@@ -782,7 +797,7 @@ const APP = {
 async function loadStorage() {
   updateSyncUI('syncing');
   try {
-    if (!db) initFirebase();
+    if (!db) await initFirebase();
     const doc = await db.collection('data').doc(STORAGE_KEY).get();
     if (doc.exists) {
       APP.storage = doc.data().payload ? JSON.parse(doc.data().payload) : getDefaultStorage();
@@ -801,7 +816,7 @@ async function loadStorage() {
 async function saveStorage(section) {
   updateSyncUI('syncing');
   try {
-    if (!db) initFirebase();
+    if (!db) await initFirebase();
     APP.storage.lastSyncedAt = Date.now();
     APP.storage.lastSyncedBy = APP.currentUser;
     await db.collection('data').doc(STORAGE_KEY).set({
@@ -5860,29 +5875,61 @@ function renderSettings() {
 function toggleAPICategory(header) { header.classList.toggle('open'); header.nextElementSibling.classList.toggle('open'); }
 function togglePwInput(id) { const el=document.getElementById(id); if(el) el.type=el.type==='password'?'text':'password'; }
 
-function saveAPIKey(id,value) {
-  APP.storage.apis=APP.storage.apis||{}; APP.storage.apis[id]=value;
-  saveStorage('apis'); updateBadges();
-  const dot=document.querySelector(`#api-${id}`)?.closest('.api-item')?.querySelector('.api-dot');
-  if(dot) dot.className='api-dot '+(value.length>4?'connected':'disconnected');
-  if(value.length>4) showToast('✅ API key saved!','success',id+' connected to Firebase');
+async function saveAPIKey(id, value) {
+  if (!value || value.trim().length < 4) { showToast('⚠️ Key too short', 'warning'); return; }
+  APP.storage.apis = APP.storage.apis || {};
+  APP.storage.apis[id] = value.trim();
+  showToast('💾 Saving...', 'info', 'Connecting to Firebase...');
+  try {
+    if (!db) initFirebase();
+    APP.storage.lastSyncedAt = Date.now();
+    APP.storage.lastSyncedBy = APP.currentUser;
+    await db.collection('data').doc(STORAGE_KEY).set({
+      payload: JSON.stringify(APP.storage),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: APP.currentUser || 'unknown'
+    });
+    updateSyncUI('synced');
+    updateBadges();
+    const dot = document.querySelector('#api-' + id)?.closest('.api-item')?.querySelector('.api-dot');
+    if (dot) dot.className = 'api-dot connected';
+    showToast('✅ API key saved to Firebase!', 'success', id + ' — will stay after refresh');
+  } catch(e) {
+    showToast('❌ Save failed: ' + e.message, 'error', 'Check internet connection');
+    console.error('saveAPIKey error:', e);
+  }
 }
 
-function saveAllAPIKeys() {
+async function saveAllAPIKeys() {
   APP.storage.apis = APP.storage.apis || {};
   let count = 0;
   document.querySelectorAll('.api-key-input').forEach(function(input) {
-    const id = input.id.replace('api-','');
+    const id = input.id.replace('api-', '');
     const value = input.value.trim();
     if (value.length > 4) {
       APP.storage.apis[id] = value;
       count++;
     }
   });
-  saveStorage('apis');
-  updateBadges();
-  showToast('💾 All API keys saved to Firebase!', 'success', count + ' keys saved — your friend will see them too');
-  setTimeout(() => showPage('settings'), 500);
+  if (count === 0) { showToast('⚠️ No keys to save', 'warning', 'Paste at least one API key first'); return; }
+  showToast('💾 Saving ' + count + ' keys...', 'info');
+  try {
+    if (!db) initFirebase();
+    APP.storage.lastSyncedAt = Date.now();
+    APP.storage.lastSyncedBy = APP.currentUser;
+    await db.collection('data').doc(STORAGE_KEY).set({
+      payload: JSON.stringify(APP.storage),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: APP.currentUser || 'unknown'
+    });
+    updateSyncUI('synced');
+    updateBadges();
+    showToast('✅ ' + count + ' API keys saved to Firebase!', 'success', 'Keys will stay after refresh — friend sees them too');
+    setTimeout(() => showPage('settings'), 800);
+  } catch(e) {
+    showToast('❌ Save failed: ' + e.message, 'error', 'Check Firebase rules — must be allow read, write: if true');
+    console.error('saveAllAPIKeys error:', e);
+  }
 }
 
 // ═══════════════════════════════════════════════════
