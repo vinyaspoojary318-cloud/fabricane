@@ -6220,10 +6220,45 @@ function exportAllData(){downloadFile(JSON.stringify(APP.storage,null,2),'fabric
 // BOOT
 // ═══════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  await loadStorage();
-  if(checkSession()) { await showApp(); }
-  document.addEventListener('keydown', e=>{
-    if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('global-search')?.focus();}
+  // Show loading message
+  const loginCard = document.querySelector('.login-card');
+  const loadingDiv = document.createElement('div');
+  loadingDiv.id = 'boot-loading';
+  loadingDiv.style.cssText = 'text-align:center;padding:20px;color:#a0a0c0;font-size:0.85rem;';
+  loadingDiv.innerHTML = '<div style="font-size:1.5rem;margin-bottom:8px;">⟳</div>Connecting to Firebase...';
+  if (loginCard) loginCard.appendChild(loadingDiv);
+
+  try {
+    // Wait for Firebase SDK to be ready
+    await waitForFirebase();
+    await initFirebase();
+
+    // Test write to confirm connection
+    await db.collection('data').doc('_ping').set({ ts: Date.now() });
+    console.log('✅ Firebase write test passed');
+
+    // Remove ping doc
+    await db.collection('data').doc('_ping').delete().catch(() => {});
+
+    // Load real data
+    await loadStorage();
+  } catch(e) {
+    console.error('Boot error:', e);
+    // Use local defaults if Firebase fails
+    APP.storage = getDefaultStorage();
+  }
+
+  // Remove loading message
+  const ld = document.getElementById('boot-loading');
+  if (ld) ld.remove();
+
+  if (checkSession()) { await showApp(); }
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      document.getElementById('global-search')?.focus();
+    }
   });
 });
 </script>
