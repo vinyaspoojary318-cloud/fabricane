@@ -13,7 +13,7 @@
 
 <!-- Firebase SDKs -->
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-app-compat.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-firestore-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.7.1/firebase-database-compat.min.js"></script>
 
 <style>
 /* ═══════════════════════════════════════════════
@@ -745,6 +745,7 @@ const STORAGE_KEY = 'fabricane_v1';
 const firebaseConfig = {
   apiKey: "AIzaSyCPHJPLO_pA_T4UD8W5s7nm418HWuNydfc",
   authDomain: "fabricane-2366c.firebaseapp.com",
+  databaseURL: "https://fabricane-2366c-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "fabricane-2366c",
   storageBucket: "fabricane-2366c.firebasestorage.app",
   messagingSenderId: "731658632483",
@@ -752,7 +753,7 @@ const firebaseConfig = {
   measurementId: "G-J5PJR4E6KD"
 };
 
-// Firebase will be initialized after SDK loads
+// Firebase Realtime Database
 let db = null;
 
 async function waitForFirebase() {
@@ -761,7 +762,7 @@ async function waitForFirebase() {
     await new Promise(r => setTimeout(r, 200));
     attempts++;
   }
-  if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded — check internet');
+  if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
 }
 
 async function initFirebase() {
@@ -770,12 +771,8 @@ async function initFirebase() {
     if (!firebase.apps || !firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
-    db = firebase.firestore();
-    // Enable offline persistence
-    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-      console.log('Persistence error:', err.code);
-    });
-    console.log('✅ Firebase connected');
+    db = firebase.database();
+    console.log('✅ Firebase Realtime Database connected');
   } catch(e) {
     console.error('Firebase init error:', e);
     throw e;
@@ -794,14 +791,16 @@ async function loadStorage() {
   updateSyncUI('syncing');
   try {
     if (!db) await initFirebase();
-    const doc = await db.collection('data').doc(STORAGE_KEY).get();
-    if (doc.exists) {
-      APP.storage = doc.data().payload ? JSON.parse(doc.data().payload) : getDefaultStorage();
+    const snapshot = await db.ref(STORAGE_KEY).get();
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      APP.storage = data.payload ? JSON.parse(data.payload) : getDefaultStorage();
     } else {
       APP.storage = getDefaultStorage();
       await saveStorage('init');
     }
     updateSyncUI('synced');
+    console.log('✅ Data loaded from Firebase');
   } catch(e) {
     console.error('loadStorage error:', e);
     APP.storage = APP.storage && Object.keys(APP.storage).length ? APP.storage : getDefaultStorage();
@@ -815,44 +814,42 @@ async function saveStorage(section) {
     if (!db) await initFirebase();
     APP.storage.lastSyncedAt = Date.now();
     APP.storage.lastSyncedBy = APP.currentUser;
-    await db.collection('data').doc(STORAGE_KEY).set({
+    await db.ref(STORAGE_KEY).set({
       payload: JSON.stringify(APP.storage),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: Date.now(),
       updatedBy: APP.currentUser || 'unknown'
     });
     updateSyncUI('synced');
     updateSyncText();
+    console.log('✅ Data saved to Firebase');
   } catch(e) {
     console.error('saveStorage error:', e);
     updateSyncUI('error');
+    showToast('❌ Save failed: ' + e.message, 'error');
   }
 }
 
-// Real-time listener — when other user saves, this user gets updated
-let firestoreUnsubscribe = null;
+// Real-time listener — when other user saves, this user gets updated instantly
+let realtimeListener = null;
 function startRealtimeSync() {
   if (!db) return;
-  if (firestoreUnsubscribe) firestoreUnsubscribe();
-  firestoreUnsubscribe = db.collection('data').doc(STORAGE_KEY)
-    .onSnapshot(doc => {
-      if (!doc.exists) return;
-      const data = doc.data();
-      // Update for ALL changes including own — always stay in sync
-      try {
-        const newStorage = JSON.parse(data.payload);
-        const isFromOther = data.updatedBy && data.updatedBy !== APP.currentUser;
-        APP.storage = newStorage;
-        updateSyncText();
-        renderPageIfActive();
-        initQLM();
-        initLinkSwitches();
-        if (isFromOther) {
-          showToast('🔄 Synced!', 'info', 'Latest data loaded from Firebase');
-        }
-      } catch(e) { console.error('Sync parse error:', e); }
-    }, err => {
-      console.error('Realtime sync error:', err);
-    });
+  if (realtimeListener) realtimeListener();
+  realtimeListener = db.ref(STORAGE_KEY).on('value', snapshot => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.val();
+    try {
+      const newStorage = JSON.parse(data.payload);
+      const isFromOther = data.updatedBy && data.updatedBy !== APP.currentUser;
+      APP.storage = newStorage;
+      updateSyncText();
+      renderPageIfActive();
+      initQLM();
+      initLinkSwitches();
+      if (isFromOther) {
+        showToast('🔄 Synced!', 'success', 'Latest data loaded');
+      }
+    } catch(e) { console.error('Sync parse error:', e); }
+  });
 }
 
 function getDefaultStorage() {
@@ -5886,9 +5883,9 @@ async function saveAPIKey(id, value) {
     if (!db) initFirebase();
     APP.storage.lastSyncedAt = Date.now();
     APP.storage.lastSyncedBy = APP.currentUser;
-    await db.collection('data').doc(STORAGE_KEY).set({
+    await db.ref(STORAGE_KEY).set({
       payload: JSON.stringify(APP.storage),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: Date.now(),
       updatedBy: APP.currentUser || 'unknown'
     });
     updateSyncUI('synced');
@@ -5919,9 +5916,9 @@ async function saveAllAPIKeys() {
     if (!db) initFirebase();
     APP.storage.lastSyncedAt = Date.now();
     APP.storage.lastSyncedBy = APP.currentUser;
-    await db.collection('data').doc(STORAGE_KEY).set({
+    await db.ref(STORAGE_KEY).set({
       payload: JSON.stringify(APP.storage),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: Date.now(),
       updatedBy: APP.currentUser || 'unknown'
     });
     updateSyncUI('synced');
@@ -6234,11 +6231,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     await initFirebase();
 
     // Test write to confirm connection
-    await db.collection('data').doc('_ping').set({ ts: Date.now() });
+    await db.ref('_ping').set({ ts: Date.now() });
     console.log('✅ Firebase write test passed');
 
     // Remove ping doc
-    await db.collection('data').doc('_ping').delete().catch(() => {});
+    await db.ref('_ping').remove().catch(() => {});
 
     // Load real data
     await loadStorage();
