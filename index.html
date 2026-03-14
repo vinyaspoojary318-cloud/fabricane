@@ -5826,7 +5826,10 @@ function renderSettings() {
     <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.5rem;">🤖</span><div><div style="font-weight:600;margin-bottom:4px;">Smart Auto-Selection Active</div><div style="font-size:0.78rem;color:var(--text2);">Captions → Gemini Flash (free). Images → DALL-E 3. Voice → ElevenLabs. Trends → Serper.</div></div></div>
   </div>
   <div class="progress" style="margin-bottom:8px;"><div class="progress-bar" style="width:${(connectedCount/43)*100}%;"></div></div>
-  <div style="font-size:0.75rem;color:var(--text2);margin-bottom:20px;">${connectedCount}/43 APIs configured</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div style="font-size:0.75rem;color:var(--text2);">${connectedCount}/43 APIs configured</div>
+    <button class="btn btn-primary btn-sm" onclick="saveAllAPIKeys()" style="gap:6px;">💾 Save All Keys</button>
+  </div>
   ${API_CATEGORIES.map(cat=>`
   <div class="api-category">
     <div class="api-cat-header" onclick="toggleAPICategory(this)">
@@ -5844,8 +5847,9 @@ function renderSettings() {
           <div class="api-desc">${api.desc}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <input type="password" class="api-key-input" id="api-${api.id}" value="${APP.storage.apis?.[api.id]||''}" placeholder="Paste key..." style="width:160px;" onchange="saveAPIKey('${api.id}',this.value)">
+          <input type="password" class="api-key-input" id="api-${api.id}" value="${APP.storage.apis?.[api.id]||''}" placeholder="Paste key..." style="width:160px;">
           <button class="pw-toggle" style="position:relative;transform:none;" onclick="togglePwInput('api-${api.id}')">👁</button>
+          <button class="btn btn-primary btn-xs" style="padding:4px 8px;font-size:0.7rem;" onclick="saveAPIKey('${api.id}',document.getElementById('api-'+'${api.id}').value)">💾 Save</button>
         </div>
       </div>`).join('')}
     </div>
@@ -5861,7 +5865,24 @@ function saveAPIKey(id,value) {
   saveStorage('apis'); updateBadges();
   const dot=document.querySelector(`#api-${id}`)?.closest('.api-item')?.querySelector('.api-dot');
   if(dot) dot.className='api-dot '+(value.length>4?'connected':'disconnected');
-  if(value.length>4) showToast('✅ API key saved','success',id+' connected');
+  if(value.length>4) showToast('✅ API key saved!','success',id+' connected to Firebase');
+}
+
+function saveAllAPIKeys() {
+  APP.storage.apis = APP.storage.apis || {};
+  let count = 0;
+  document.querySelectorAll('.api-key-input').forEach(function(input) {
+    const id = input.id.replace('api-','');
+    const value = input.value.trim();
+    if (value.length > 4) {
+      APP.storage.apis[id] = value;
+      count++;
+    }
+  });
+  saveStorage('apis');
+  updateBadges();
+  showToast('💾 All API keys saved to Firebase!', 'success', count + ' keys saved — your friend will see them too');
+  setTimeout(() => showPage('settings'), 500);
 }
 
 // ═══════════════════════════════════════════════════
