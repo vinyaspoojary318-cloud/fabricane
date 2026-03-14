@@ -841,18 +841,19 @@ function startRealtimeSync() {
     .onSnapshot(doc => {
       if (!doc.exists) return;
       const data = doc.data();
-      // Only update if another user made the change
-      if (data.updatedBy && data.updatedBy !== APP.currentUser) {
-        try {
-          const newStorage = JSON.parse(data.payload);
-          APP.storage = newStorage;
-          updateSyncText();
-          renderPageIfActive();
-          initQLM();
-          initLinkSwitches();
-          showToast('🔄 Synced from ' + (data.updatedBy === 'user1' ? (APP.storage.userNames?.user1||'User 1') : (APP.storage.userNames?.user2||'User 2')), 'info');
-        } catch(e) {}
-      }
+      // Update for ALL changes including own — always stay in sync
+      try {
+        const newStorage = JSON.parse(data.payload);
+        const isFromOther = data.updatedBy && data.updatedBy !== APP.currentUser;
+        APP.storage = newStorage;
+        updateSyncText();
+        renderPageIfActive();
+        initQLM();
+        initLinkSwitches();
+        if (isFromOther) {
+          showToast('🔄 Synced!', 'info', 'Latest data loaded from Firebase');
+        }
+      } catch(e) { console.error('Sync parse error:', e); }
     }, err => {
       console.error('Realtime sync error:', err);
     });
@@ -1024,8 +1025,9 @@ async function showApp() {
   initWebhookUI();
   initLinkSwitches();
   updateBadges();
+  startRealtimeSync(); // ← real-time sync with Firebase
 
-  // Periodic sync check
+  // Periodic sync check as backup
   setInterval(async () => {
     await loadStorage();
     updateSyncText();
