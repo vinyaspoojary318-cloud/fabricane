@@ -416,7 +416,7 @@ tr:hover td { background: var(--bg2); }
 /* Image upload box */
 .img-upload { border: 2px dashed var(--border2); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
 .img-upload:hover { border-color: var(--pink); background: rgba(255,61,139,0.03); }
-.img-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.img-upload input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
 .img-upload .upload-icon { font-size: 2rem; margin-bottom: 8px; }
 .img-upload p { font-size: 0.82rem; color: var(--text2); }
 .img-preview { width: 100%; border-radius: 10px; object-fit: cover; display: block; }
@@ -867,6 +867,9 @@ function getDefaultStorage() {
     autoUpload: { enabled: false, rules: {} },
     autoUploadHistory: [],
     contentTemplates: [],
+    dmSettings: { trigger: 'link', message: 'Hi! Here\'s the link you asked for 🛍️\n{affiliate_link}\n\nBrowse more: fabricane.vercel.app\n\nHappy shopping! 💕 #ad', active: false },
+    pipelineLog: [],
+    postHistory: [],
     vault: [],
     scheduledPosts: [],
     analytics: { posts: [], clicks: [], earnings: [] },
@@ -1516,7 +1519,7 @@ async function fetchTrends() {
           '{"songs":[{"title":"song name","artist":"artist name","trend":"🔥 Viral"}],"hashtags":["#tag1","#tag2"],"topics":[{"title":"topic","volume":"10K posts"}]}\n' +
           'Focus on Indian Reels audio, fashion/beauty hashtags. Max 8 songs, 20 hashtags, 6 topics. Data: ' + raw.slice(0,1500);
 
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
@@ -1770,11 +1773,12 @@ function renderProducts() {
         </div>
         <div><label>EarnKaro Affiliate Link *</label><input type="url" id="p-link" placeholder="https://ekaro.in/..."></div>
         <div style="margin-top:12px;"><label>Product Image</label>
-          <div class="img-upload" onclick="document.getElementById('p-img-file').click()">
-            <input type="file" id="p-img-file" accept="image/*" style="position:absolute;opacity:0;pointer-events:none;">
+          <label class="img-upload" style="cursor:pointer;display:block;">
+            <input type="file" id="p-img-file" accept="image/*" style="display:none;" onchange="loadProductUpload(this)">
             <div class="upload-icon">🖼️</div>
-            <p>Click to upload or paste URL below</p>
-          </div>
+            <p id="p-img-label">Tap here to upload from gallery</p>
+            <img id="p-img-preview" style="display:none;max-height:120px;margin-top:8px;border-radius:8px;width:100%;object-fit:cover;">
+          </label>
           <input type="url" id="p-img-url" placeholder="Or paste image URL..." style="margin-top:8px;">
         </div>
         <div style="margin-top:16px;display:flex;gap:10px;">
@@ -1845,6 +1849,21 @@ function saveProduct() {
   updateBadges();
   showPage('products');
   showToast('✅ Product saved!', 'success', name + ' added to library');
+}
+
+function loadProductUpload(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const preview = document.getElementById('p-img-preview');
+    const label = document.getElementById('p-img-label');
+    const urlInput = document.getElementById('p-img-url');
+    if (preview) { preview.src = e.target.result; preview.style.display = 'block'; }
+    if (label) label.textContent = '✅ ' + file.name.slice(0, 25);
+    if (urlInput) urlInput.value = e.target.result; // Store base64 as URL
+    showToast('📸 Image loaded from gallery!', 'success');
+  };
+  reader.readAsDataURL(file);
 }
 
 function deleteProduct(id) {
@@ -2459,7 +2478,7 @@ async function generateCarouselWithAI() {
     '{"slides":[{"slide":1,"text":"..."},...],"caption":"...","hashtags":"..."}';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 1000 } })
@@ -2496,7 +2515,7 @@ async function genSlideText(idx) {
   const prompt = 'Write a short compelling Instagram carousel slide text (1-2 sentences, max 80 chars) for slide ' + (parseInt(idx)+1) + ' of a carousel about: ' + (prod?.name || 'Indian fashion product') + '. Be engaging and trendy. Respond with just the text, no quotes.';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
@@ -2819,7 +2838,7 @@ async function generateReelWithAI() {
     '{"scenes":[{"scene":1,"voiceover":"...","onScreenText":"...","transition":"Cut","durationSec":3},...],\n"caption":"...","hashtags":"..."}';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.85, maxOutputTokens: 1200 } })
@@ -2861,7 +2880,7 @@ async function genSceneVoiceover(idx) {
   const prompt = 'Write a short voiceover line for scene ' + (parseInt(idx)+1) + ' of an Instagram Reel about ' + (prod?.name || 'Indian fashion') + '. Max 15 words. Energetic and trendy. No quotes.';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
@@ -3026,154 +3045,574 @@ function deleteTemplate(id) {
 // ═══════════════════════════════════════════════════
 // AUTOMATION PIPELINE
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// AUTOMATION PIPELINE — Real API posting
+// ═══════════════════════════════════════════════════
+
 function renderPipeline() {
-  const steps = getPipelineSteps();
+  const products = APP.storage.products || [];
+  const apis = APP.storage.apis || {};
+
+  // Check which APIs are connected
+  const hasIG       = apis.instagram_token?.length > 4;
+  const hasFB       = apis.facebook_token?.length > 4;
+  const hasPint     = apis.pinterest_token?.length > 4;
+  const hasManyChat = apis.manychat?.length > 4;
+  const hasClaude   = apis.claude?.length > 4;
+  const hasSlack    = apis.slack?.length > 4;
+
   const html = `
   <div class="page-header">
     <h1>Automation <span>Pipeline</span></h1>
-    <p>One-click: generate → post → notify → log</p>
+    <p>Auto-generate content → post to Instagram, Facebook, Pinterest → auto-reply DMs with affiliate link</p>
   </div>
 
-  <div class="grid-2" style="gap:20px;margin-bottom:20px;">
-    <div class="card">
-      <div class="section-title">⚙️ Pipeline Settings</div>
-      <div class="form-row">
-        <div><label>Select Product</label>
-          <select id="pipe-product">
-            <option value="">— Select product —</option>
-            ${(APP.storage.products||[]).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="form-row cols-2">
-        <div><label>Schedule Time</label><input type="datetime-local" id="pipe-schedule"></div>
-        <div><label>Post Mode</label>
-          <select id="pipe-mode">
-            <option value="now">Post Immediately</option>
-            <option value="schedule">Schedule</option>
-            <option value="bulk">Bulk Generate</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <label class="toggle-wrap" style="flex:none;padding:8px 0;border:none;gap:10px;cursor:pointer;">
-          <span class="toggle-label" style="font-size:0.8rem;">📌 Pinterest</span>
-          <label class="toggle"><input type="checkbox" id="pipe-pint" checked><span class="toggle-slider"></span></label>
-        </label>
-        <label class="toggle-wrap" style="flex:none;padding:8px 0;border:none;gap:10px;cursor:pointer;">
-          <span class="toggle-label" style="font-size:0.8rem;">📸 Instagram</span>
-          <label class="toggle"><input type="checkbox" id="pipe-ig" checked><span class="toggle-slider"></span></label>
-        </label>
-        <label class="toggle-wrap" style="flex:none;padding:8px 0;border:none;gap:10px;cursor:pointer;">
-          <span class="toggle-label" style="font-size:0.8rem;">👥 Facebook</span>
-          <label class="toggle"><input type="checkbox" id="pipe-fb"><span class="toggle-slider"></span></label>
-        </label>
-      </div>
-      <button class="btn btn-primary btn-full" style="margin-top:14px;padding:14px;" onclick="startPipeline()" id="pipeline-start-btn">
-        🚀 Start Pipeline
-      </button>
-    </div>
-    <div class="card">
-      <div class="section-title">📊 Pipeline Stats</div>
-      <div class="grid-2">
-        <div class="qlm-stat"><div class="qlm-stat-val" id="pipe-today">0</div><div class="qlm-stat-lbl">Posts Today</div></div>
-        <div class="qlm-stat"><div class="qlm-stat-val" id="pipe-week">0</div><div class="qlm-stat-lbl">This Week</div></div>
-        <div class="qlm-stat"><div class="qlm-stat-val">5</div><div class="qlm-stat-lbl">Max/Day Limit</div></div>
-        <div class="qlm-stat"><div class="qlm-stat-val">2h</div><div class="qlm-stat-lbl">Min Gap</div></div>
-      </div>
-      <div style="margin-top:14px;">
-        <div style="font-size:0.72rem;color:var(--text2);margin-bottom:6px;">Today's Progress</div>
-        <div class="progress"><div class="progress-bar" style="width:20%"></div></div>
-        <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;">1/5 posts done today</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="section-title">⚡ Pipeline Steps</div>
-    <div id="pipeline-steps">
-      ${steps.map((s,i) => `
-      <div class="pipeline-step ${s.status}" id="step-${i+1}">
-        <div class="step-num">${i+1}</div>
-        <div class="step-info">
-          <div class="step-name">${s.name}</div>
-          <div class="step-detail">${s.detail}</div>
-        </div>
-        <div class="step-status">${s.status === 'done' ? '✅' : s.status === 'active' ? '<span class="spinner">⟳</span>' : s.status === 'error' ? '❌' : '⏳'}</div>
+  <!-- API Status -->
+  <div class="card" style="margin-bottom:16px;background:rgba(0,229,160,0.04);border-color:rgba(0,229,160,0.2);">
+    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;">🔌 Connected APIs</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${[
+        { name:'Claude AI',    ok: hasClaude,   icon:'🤖' },
+        { name:'Instagram',    ok: hasIG,        icon:'📸' },
+        { name:'Facebook',     ok: hasFB,        icon:'👥' },
+        { name:'Pinterest',    ok: hasPint,      icon:'📌' },
+        { name:'ManyChat',     ok: hasManyChat,  icon:'💬' },
+        { name:'Slack',        ok: hasSlack,     icon:'🔔' },
+      ].map(a => `
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border-radius:20px;border:1px solid ${a.ok?'rgba(0,229,160,0.3)':'var(--border)'};">
+        <span>${a.icon}</span>
+        <span style="font-size:0.75rem;">${a.name}</span>
+        <div class="api-dot ${a.ok?'connected':'disconnected'}" style="width:6px;height:6px;"></div>
       </div>`).join('')}
     </div>
+    ${(!hasClaude||!hasIG) ? `<div style="margin-top:10px;font-size:0.72rem;color:var(--gold);">⚠️ Add missing keys in <a href="#" onclick="showPage('settings')" style="color:var(--pink);">Settings → API Keys</a></div>` : ''}
   </div>
 
+  <div class="grid-2" style="gap:16px;margin-bottom:16px;">
+    <!-- Post Settings -->
+    <div class="card">
+      <div class="section-title">⚙️ Post Settings</div>
+      <div style="margin-bottom:12px;">
+        <label>Select Product</label>
+        <select id="pipe-product" style="margin-top:4px;">
+          <option value="">— Select product —</option>
+          ${products.map(p => `<option value="${p.id}">${p.name} · ${p.price}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Caption (AI will generate if empty)</label>
+        <textarea id="pipe-caption" placeholder="Leave empty for AI to generate caption automatically..." style="width:100%;height:70px;font-size:0.78rem;resize:vertical;margin-top:4px;"></textarea>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Image URL or Base64</label>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <input type="text" id="pipe-image-url" placeholder="Paste image URL..." style="flex:1;font-size:0.78rem;">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer;white-space:nowrap;">
+            📸 Gallery
+            <input type="file" accept="image/*" style="display:none;" onchange="loadPipelineImage(this)">
+          </label>
+        </div>
+        <img id="pipe-image-preview" style="display:none;width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-top:8px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.72rem;font-weight:600;margin-bottom:8px;display:block;">Post to:</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;">
+            <input type="checkbox" id="pipe-ig" ${hasIG?'checked':''}> 📸 Instagram
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;">
+            <input type="checkbox" id="pipe-fb" ${hasFB?'checked':''}> 👥 Facebook
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;">
+            <input type="checkbox" id="pipe-pint" ${hasPint?'checked':''}> 📌 Pinterest
+          </label>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:0.95rem;" onclick="startPipeline()" id="pipeline-start-btn">
+        🚀 Generate & Post Now
+      </button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="generateOnlyPipeline()">
+        ✨ Generate Only (No Post)
+      </button>
+    </div>
+
+    <!-- Auto DM Settings -->
+    <div class="card">
+      <div class="section-title">💬 Auto DM — Send Link to Commenters</div>
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+        When someone comments on your Instagram post, automatically send them the affiliate link via DM using ManyChat.
+      </div>
+      <div style="margin-bottom:10px;">
+        <label>Trigger Keyword</label>
+        <input type="text" id="dm-trigger" value="${APP.storage.dmSettings?.trigger||'link'}" placeholder="e.g. link, price, buy" style="margin-top:4px;font-size:0.82rem;">
+        <div style="font-size:0.68rem;color:var(--text3);margin-top:3px;">People comment this word → they get the link automatically</div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label>Auto DM Message</label>
+        <textarea id="dm-message" style="width:100%;height:80px;font-size:0.78rem;resize:vertical;margin-top:4px;" placeholder="Hi! Here's the link you asked for 🛍️&#10;{affiliate_link}&#10;&#10;Shop now! 💕 #ad">${APP.storage.dmSettings?.message||'Hi! Here\'s the link you asked for 🛍️\n{affiliate_link}\n\nBrowse more at: fabricane.vercel.app\n\nHappy shopping! 💕 #ad'}</textarea>
+        <div style="font-size:0.68rem;color:var(--text3);margin-top:3px;">Use {affiliate_link} for the EarnKaro link</div>
+      </div>
+      <div style="margin-bottom:12px;" class="toggle-wrap">
+        <div><div class="toggle-label">Auto DM Active</div><div class="toggle-sublabel">Send link to everyone who comments trigger word</div></div>
+        <label class="toggle"><input type="checkbox" id="dm-active" ${APP.storage.dmSettings?.active?'checked':''}><span class="toggle-slider"></span></label>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveDMSettings()">💾 Save DM Settings</button>
+      <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="setupManyChatFlow()">🔄 Setup ManyChat Flow</button>
+    </div>
+  </div>
+
+  <!-- Pipeline Log -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div class="section-title" style="margin-bottom:0;">📋 Pipeline Log</div>
+      <button class="btn btn-ghost btn-xs" onclick="clearPipelineLog()">Clear</button>
+    </div>
+    <div id="pipeline-log" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;">
+      ${renderPipelineLog()}
+    </div>
+  </div>
+
+  <!-- Post History -->
   <div class="card" style="margin-top:16px;">
-    <div class="section-title">📅 Scheduled Posts</div>
-    ${renderScheduledPosts()}
+    <div class="section-title">📅 Post History</div>
+    ${renderPostHistory()}
   </div>`;
 
   document.getElementById('main-content').innerHTML = html;
 }
 
-function getPipelineSteps() {
-  return [
-    { name:'Generate text content', detail:'Auto-select best AI model for caption, hashtags, pin title', status:'' },
-    { name:'Generate image prompt', detail:'Craft detailed prompt for AI image model', status:'' },
-    { name:'Generate AI image', detail:'Send to selected image model (DALL-E 3 / Dreamlike / SD)', status:'' },
-    { name:'Virtual try-on via Replicate', detail:'Dress AI influencer in product using Replicate API', status:'' },
-    { name:'Combine poster elements', detail:'Merge product image, influencer, watermark, price badge', status:'' },
-    { name:'Generate voiceover', detail:'ElevenLabs creates influencer voiceover from script', status:'' },
-    { name:'Generate background music', detail:'MusicGen creates royalty-free background music', status:'' },
-    { name:'Mix audio tracks', detail:'Combine voice and music with volume controls', status:'' },
-    { name:'Full preview & approval', detail:'Show complete post preview for final approval', status:'' },
-    { name:'Post to Pinterest', detail:'Pin with permanent EarnKaro affiliate link', status:'' },
-    { name:'Post to Instagram', detail:'Via Instagram Graph API with caption + hashtags', status:'' },
-    { name:'Post to Facebook', detail:'Via Facebook Graph API', status:'' },
-    { name:'Setup ManyChat auto-reply', detail:'Configure auto-reply with affiliate link + link.fans URL', status:'' },
-    { name:'Send Slack notification', detail:'Alert team about new post via Slack webhook', status:'' },
-    { name:'Email report via SendGrid', detail:'Send performance report email', status:'' },
-    { name:'Save to Content Vault', detail:'Archive all generated content automatically', status:'' },
-  ];
+// ── Load image from gallery for pipeline ────────────────────────
+function loadPipelineImage(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const preview = document.getElementById('pipe-image-preview');
+    const urlInput = document.getElementById('pipe-image-url');
+    if (preview) { preview.src = e.target.result; preview.style.display = 'block'; }
+    if (urlInput) urlInput.value = e.target.result;
+    showToast('📸 Image loaded!', 'success');
+  };
+  reader.readAsDataURL(file);
 }
 
+// ── Main pipeline ─────────────────────────────────────────────────
 async function startPipeline() {
   const prodId = document.getElementById('pipe-product')?.value;
   if (!prodId) { showToast('⚠️ Select a product first', 'warning'); return; }
 
-  const btn = document.getElementById('pipeline-start-btn');
-  if (btn) { btn.innerHTML = '<span class="spinner">⟳</span> Running Pipeline...'; btn.disabled = true; }
+  const prod = (APP.storage.products||[]).find(p => p.id === prodId);
+  if (!prod) return;
 
-  const steps = getPipelineSteps();
-  const totalSteps = steps.length;
+  const postIG   = document.getElementById('pipe-ig')?.checked;
+  const postFB   = document.getElementById('pipe-fb')?.checked;
+  const postPint = document.getElementById('pipe-pint')?.checked;
 
-  for (let i = 0; i < totalSteps; i++) {
-    const el = document.getElementById(`step-${i+1}`);
-    if (el) {
-      el.className = 'pipeline-step active';
-      el.querySelector('.step-status').innerHTML = '<span class="spinner">⟳</span>';
-    }
-    await sleep(400 + Math.random() * 600);
-
-    if (el) {
-      el.className = 'pipeline-step done';
-      el.querySelector('.step-status').textContent = '✅';
-    }
-
-    // Step 9: show preview
-    if (i === 8) {
-      showToast('👁️ Preview ready — approve to continue', 'info');
-      await sleep(1000);
-    }
+  if (!postIG && !postFB && !postPint) {
+    showToast('⚠️ Select at least one platform', 'warning');
+    return;
   }
 
-  logActivity('🚀 Pipeline completed for product');
-  saveStorage('pipeline');
-  if (btn) { btn.innerHTML = '🚀 Start Pipeline'; btn.disabled = false; }
-  showToast('🎉 Pipeline complete!', 'success', 'Posted to all selected platforms');
+  const btn = document.getElementById('pipeline-start-btn');
+  if (btn) { btn.innerHTML = '<span class="spinner">⟳</span> Running...'; btn.disabled = true; }
+
+  addPipelineLog('🚀 Pipeline started for: ' + prod.name, 'info');
+
+  try {
+    // Step 1: Generate caption with AI
+    addPipelineLog('🤖 Step 1: Generating AI caption...', 'info');
+    let caption = document.getElementById('pipe-caption')?.value.trim();
+    if (!caption) {
+      try {
+        caption = await callAI('caption', prod);
+        addPipelineLog('✅ Caption generated', 'success');
+      } catch(e) {
+        caption = `✨ ${prod.name} — ${prod.price} 🛍️\nShop now via link in bio!\nlink.fans/fabricane\n#ad #affiliate #indianfashion`;
+        addPipelineLog('⚠️ AI failed, using default caption', 'warning');
+      }
+    } else {
+      addPipelineLog('✅ Using custom caption', 'success');
+    }
+
+    // Add affiliate link to caption
+    const affiliateLink = APP.storage.qlm?.activeLink || prod.affiliateLink || '';
+    if (affiliateLink) {
+      caption = caption + '\n\n🔗 ' + affiliateLink;
+    }
+
+    // Step 2: Get image
+    addPipelineLog('🖼️ Step 2: Preparing image...', 'info');
+    const imageUrl = document.getElementById('pipe-image-url')?.value || prod.imgUrl || '';
+    if (!imageUrl) {
+      addPipelineLog('⚠️ No image — posts may fail without image', 'warning');
+    } else {
+      addPipelineLog('✅ Image ready', 'success');
+    }
+
+    // Step 3: Generate hashtags
+    addPipelineLog('🏷️ Step 3: Generating hashtags...', 'info');
+    let hashtags = '';
+    try {
+      hashtags = await callAI('hashtags', prod);
+      addPipelineLog('✅ Hashtags generated', 'success');
+    } catch(e) {
+      hashtags = '#indianfashion #ootd #fashion #ethnic #ad #affiliate';
+      addPipelineLog('⚠️ Using default hashtags', 'warning');
+    }
+
+    const fullCaption = caption + '\n\n' + hashtags;
+
+    // Step 4: Post to platforms
+    const results = {};
+
+    if (postIG) {
+      addPipelineLog('📸 Step 4a: Posting to Instagram...', 'info');
+      const igResult = await postToInstagram(fullCaption, imageUrl, prod);
+      results.instagram = igResult;
+      if (igResult.success) {
+        addPipelineLog('✅ Posted to Instagram! Post ID: ' + igResult.postId, 'success');
+      } else {
+        addPipelineLog('❌ Instagram failed: ' + igResult.error, 'error');
+      }
+    }
+
+    if (postFB) {
+      addPipelineLog('👥 Step 4b: Posting to Facebook...', 'info');
+      const fbResult = await postToFacebook(fullCaption, imageUrl, prod);
+      results.facebook = fbResult;
+      if (fbResult.success) {
+        addPipelineLog('✅ Posted to Facebook! Post ID: ' + fbResult.postId, 'success');
+      } else {
+        addPipelineLog('❌ Facebook failed: ' + fbResult.error, 'error');
+      }
+    }
+
+    if (postPint) {
+      addPipelineLog('📌 Step 4c: Posting to Pinterest...', 'info');
+      const pintResult = await postToPinterest(prod, imageUrl, caption);
+      results.pinterest = pintResult;
+      if (pintResult.success) {
+        addPipelineLog('✅ Posted to Pinterest! Pin ID: ' + pintResult.pinId, 'success');
+      } else {
+        addPipelineLog('❌ Pinterest failed: ' + pintResult.error, 'error');
+      }
+    }
+
+    // Step 5: Save to history
+    addPipelineLog('💾 Step 5: Saving to history...', 'info');
+    APP.storage.postHistory = APP.storage.postHistory || [];
+    APP.storage.postHistory.unshift({
+      id: 'post_' + Date.now(),
+      productName: prod.name,
+      caption: fullCaption.slice(0, 200),
+      imageUrl,
+      platforms: { instagram: postIG, facebook: postFB, pinterest: postPint },
+      results,
+      postedAt: Date.now()
+    });
+    APP.storage.postHistory = APP.storage.postHistory.slice(0, 50);
+
+    // Step 6: Save to vault
+    APP.storage.vault = APP.storage.vault || [];
+    APP.storage.vault.unshift({
+      id: 'vault_' + Date.now(),
+      type: 'auto_post',
+      productName: prod.name,
+      category: prod.category,
+      caption: fullCaption,
+      hashtags,
+      savedAt: Date.now()
+    });
+
+    saveStorage('postHistory');
+    logActivity('🚀 Auto-posted: ' + prod.name + ' → ' + Object.keys(results).join(', '));
+
+    // Step 7: Slack notification
+    if (APP.storage.apis?.slack?.length > 4) {
+      const postedTo = Object.entries(results).filter(([,v]) => v.success).map(([k]) => k).join(', ');
+      sendSlackAlert('✅ Posted ' + prod.name + ' to ' + (postedTo||'platforms') + ' | ' + prod.price);
+      addPipelineLog('🔔 Step 6: Slack alert sent', 'success');
+    }
+
+    const successCount = Object.values(results).filter(r => r.success).length;
+    addPipelineLog('🎉 Pipeline complete! ' + successCount + '/' + Object.keys(results).length + ' platforms posted', 'success');
+    showToast('🎉 Posted to ' + successCount + ' platform(s)!', 'success', prod.name);
+
+  } catch(e) {
+    addPipelineLog('❌ Pipeline error: ' + e.message, 'error');
+    showToast('❌ Pipeline failed: ' + e.message, 'error');
+  }
+
+  if (btn) { btn.innerHTML = '🚀 Generate & Post Now'; btn.disabled = false; }
+  // Refresh log
+  const logEl = document.getElementById('pipeline-log');
+  if (logEl) logEl.innerHTML = renderPipelineLog();
+}
+
+// ── Generate only (no posting) ───────────────────────────────────
+async function generateOnlyPipeline() {
+  const prodId = document.getElementById('pipe-product')?.value;
+  if (!prodId) { showToast('⚠️ Select a product first', 'warning'); return; }
+  const prod = (APP.storage.products||[]).find(p => p.id === prodId);
+  if (!prod) return;
+
+  showToast('🤖 Generating content...', 'info');
+  try {
+    const [caption, hashtags] = await Promise.all([
+      callAI('caption', prod),
+      callAI('hashtags', prod)
+    ]);
+    const capEl = document.getElementById('pipe-caption');
+    if (capEl) capEl.value = caption + '\n\n' + hashtags;
+    showToast('✅ Content generated!', 'success', 'Review and click Post Now');
+  } catch(e) {
+    showToast('❌ Generation failed: ' + e.message, 'error');
+  }
+}
+
+// ── Post to Instagram ────────────────────────────────────────────
+async function postToInstagram(caption, imageUrl, product) {
+  const apis = APP.storage.apis || {};
+  const token = apis.instagram_token;
+  const igUserId = apis.instagram_user_id;
+
+  if (!token || token.length < 4) return { success: false, error: 'No Instagram token — add in Settings → API Keys → Instagram Token' };
+  if (!igUserId || igUserId.length < 2) return { success: false, error: 'No Instagram User ID — add in Settings → API Keys → Instagram User ID' };
+  if (!imageUrl) return { success: false, error: 'No image — Instagram requires an image to post' };
+
+  try {
+    // Step 1: Create media container
+    const createRes = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_url: imageUrl.startsWith('data:') ? null : imageUrl,
+        caption: caption,
+        access_token: token
+      })
+    });
+    const createData = await createRes.json();
+    if (createData.error) return { success: false, error: 'IG Container: ' + createData.error.message };
+
+    const containerId = createData.id;
+    if (!containerId) return { success: false, error: 'No container ID returned' };
+
+    // Step 2: Wait 2 seconds then publish
+    await sleep(2000);
+    const publishRes = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        creation_id: containerId,
+        access_token: token
+      })
+    });
+    const publishData = await publishRes.json();
+    if (publishData.error) return { success: false, error: 'IG Publish: ' + publishData.error.message };
+
+    return { success: true, postId: publishData.id };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Post to Facebook ─────────────────────────────────────────────
+async function postToFacebook(caption, imageUrl, product) {
+  const apis = APP.storage.apis || {};
+  const token = apis.facebook_token;
+  const pageId = apis.facebook_page_id;
+
+  if (!token || token.length < 4) return { success: false, error: 'No Facebook token — add in Settings → API Keys → Facebook Token' };
+  if (!pageId || pageId.length < 2) return { success: false, error: 'No Facebook Page ID — add in Settings → API Keys → Facebook Page ID' };
+
+  try {
+    let endpoint, body;
+
+    if (imageUrl && !imageUrl.startsWith('data:')) {
+      // Post with image
+      endpoint = `https://graph.facebook.com/v18.0/${pageId}/photos`;
+      body = { url: imageUrl, caption: caption, access_token: token };
+    } else {
+      // Post text only
+      endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+      body = { message: caption, access_token: token };
+    }
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (data.error) return { success: false, error: 'FB: ' + data.error.message };
+    return { success: true, postId: data.id || data.post_id };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Post to Pinterest ────────────────────────────────────────────
+async function postToPinterest(product, imageUrl, caption) {
+  const apis = APP.storage.apis || {};
+  const token = apis.pinterest_token;
+  const boardId = apis.pinterest_board_id;
+
+  if (!token || token.length < 4) return { success: false, error: 'No Pinterest token — add in Settings → API Keys → Pinterest Token' };
+  if (!boardId || boardId.length < 2) return { success: false, error: 'No Pinterest Board ID — add in Settings → API Keys → Pinterest Board ID' };
+
+  try {
+    // Generate Pinterest title with AI
+    let pinTitle = product.name + ' | ' + product.price + ' | Indian Fashion';
+    try { pinTitle = await callAI('pin_title', product); } catch(e) {}
+
+    const affiliateLink = APP.storage.qlm?.activeLink || product.affiliateLink || 'https://fabricane.vercel.app';
+
+    const res = await fetch('https://api.pinterest.com/v5/pins', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        board_id: boardId,
+        title: pinTitle.slice(0, 100),
+        description: caption.slice(0, 500),
+        link: affiliateLink,
+        media_source: imageUrl && !imageUrl.startsWith('data:') ? {
+          source_type: 'image_url',
+          url: imageUrl
+        } : undefined
+      })
+    });
+    const data = await res.json();
+    if (data.code && data.code !== 0) return { success: false, error: 'Pinterest: ' + (data.message || JSON.stringify(data)) };
+    return { success: true, pinId: data.id };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Auto DM via ManyChat ─────────────────────────────────────────
+function saveDMSettings() {
+  const trigger = document.getElementById('dm-trigger')?.value.trim() || 'link';
+  const message = document.getElementById('dm-message')?.value || '';
+  const active  = document.getElementById('dm-active')?.checked || false;
+
+  APP.storage.dmSettings = { trigger, message, active };
+  saveStorage('dmSettings');
+  showToast('✅ DM settings saved!', 'success', active ? 'Auto DM is ON' : 'Auto DM is OFF');
+}
+
+async function setupManyChatFlow() {
+  const apis = APP.storage.apis || {};
+  const key = apis.manychat;
+  if (!key || key.length < 4) {
+    showToast('⚠️ ManyChat API key required', 'warning', 'Settings → API Keys → ManyChat');
+    return;
+  }
+
+  const affiliateLink = APP.storage.qlm?.activeLink || '';
+  const dmSettings = APP.storage.dmSettings || {};
+  const message = (dmSettings.message || 'Hi! Here\'s your link 🛍️\n{affiliate_link}')
+    .replace('{affiliate_link}', affiliateLink || '[Add your EarnKaro link in QLM]');
+
+  showToast('💬 ManyChat: sending test message setup...', 'info');
+
+  try {
+    // Get subscriber count to verify connection
+    const res = await fetch('https://api.manychat.com/fb/subscriber/getInfo', {
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }
+    });
+    if (res.ok) {
+      showToast('✅ ManyChat connected!', 'success', 'Set up keyword trigger "' + (dmSettings.trigger||'link') + '" in ManyChat dashboard');
+      addPipelineLog('✅ ManyChat flow verified. Trigger: "' + (dmSettings.trigger||'link') + '"', 'success');
+    } else {
+      showToast('⚠️ ManyChat connected but check your flow setup', 'warning');
+    }
+  } catch(e) {
+    showToast('❌ ManyChat error: ' + e.message, 'error');
+  }
+}
+
+// ── Pipeline log helpers ─────────────────────────────────────────
+function addPipelineLog(message, type) {
+  APP.storage.pipelineLog = APP.storage.pipelineLog || [];
+  APP.storage.pipelineLog.unshift({
+    message,
+    type: type || 'info',
+    ts: Date.now()
+  });
+  APP.storage.pipelineLog = APP.storage.pipelineLog.slice(0, 100);
+
+  // Live update
+  const logEl = document.getElementById('pipeline-log');
+  if (logEl) {
+    const colors = { success:'var(--green)', error:'var(--red)', warning:'var(--gold)', info:'var(--text2)' };
+    const icons  = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:7px 10px;background:var(--bg3);border-radius:7px;font-size:0.75rem;display:flex;gap:8px;align-items:center;';
+    div.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span style="flex:1;color:${colors[type]||'var(--text2)'};">${message}</span><span style="color:var(--text3);font-size:0.65rem;">${formatTime(Date.now())}</span>`;
+    logEl.insertBefore(div, logEl.firstChild);
+  }
+}
+
+function renderPipelineLog() {
+  const log = APP.storage.pipelineLog || [];
+  if (!log.length) return '<div style="color:var(--text3);font-size:0.78rem;padding:10px;text-align:center;">No pipeline runs yet — select a product and click Post Now</div>';
+  const colors = { success:'var(--green)', error:'var(--red)', warning:'var(--gold)', info:'var(--text2)' };
+  const icons  = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+  return log.slice(0,30).map(l =>
+    `<div style="padding:7px 10px;background:var(--bg3);border-radius:7px;font-size:0.75rem;display:flex;gap:8px;align-items:center;">
+      <span>${icons[l.type]||'ℹ️'}</span>
+      <span style="flex:1;color:${colors[l.type]||'var(--text2)'};">${l.message}</span>
+      <span style="color:var(--text3);font-size:0.65rem;">${formatTime(l.ts)}</span>
+    </div>`
+  ).join('');
+}
+
+function clearPipelineLog() {
+  APP.storage.pipelineLog = [];
+  saveStorage('pipelineLog');
+  const logEl = document.getElementById('pipeline-log');
+  if (logEl) logEl.innerHTML = renderPipelineLog();
+}
+
+function renderPostHistory() {
+  const history = APP.storage.postHistory || [];
+  if (!history.length) return '<div style="color:var(--text3);font-size:0.78rem;padding:10px;">No posts yet</div>';
+  return '<div style="display:flex;flex-direction:column;gap:8px;">' +
+    history.slice(0,10).map(h => {
+      const platforms = Object.entries(h.platforms||{}).filter(([,v])=>v).map(([k])=>({instagram:'📸',facebook:'👥',pinterest:'📌'}[k]||k)).join(' ');
+      const results = h.results || {};
+      const successCount = Object.values(results).filter(r=>r?.success).length;
+      return `<div style="padding:10px 12px;background:var(--bg3);border-radius:8px;border-left:3px solid ${successCount>0?'var(--green)':'var(--red)'};">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:0.82rem;font-weight:600;">${h.productName}</div>
+          <span style="font-size:0.68rem;color:var(--text3);">${formatTime(h.postedAt)}</span>
+        </div>
+        <div style="font-size:0.72rem;color:var(--text2);">${platforms} · ${successCount}/${Object.keys(results).length||'?'} platforms</div>
+        <div style="font-size:0.68rem;color:var(--text3);margin-top:2px;">${h.caption?.slice(0,80)||''}...</div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function getPipelineSteps() {
+  return [
+    { name:'Generate AI caption', detail:'Claude generates engaging caption', status:'' },
+    { name:'Generate hashtags', detail:'30 trending Indian fashion hashtags', status:'' },
+    { name:'Prepare image', detail:'Product or gallery image', status:'' },
+    { name:'Post to Instagram', detail:'Via Instagram Graph API', status:'' },
+    { name:'Post to Facebook', detail:'Via Facebook Graph API', status:'' },
+    { name:'Post to Pinterest', detail:'Via Pinterest API', status:'' },
+    { name:'Auto DM setup', detail:'ManyChat keyword trigger', status:'' },
+    { name:'Slack notification', detail:'Alert via Slack', status:'' },
+  ];
 }
 
 function renderScheduledPosts() {
-  const posts = APP.storage.scheduledPosts || [];
-  if (!posts.length) return '<div style="color:var(--text3);font-size:0.82rem;padding:8px;">No scheduled posts</div>';
-  return posts.map(p => `<div class="activity-item"><div class="activity-dot" style="background:var(--purple);"></div><div class="activity-content"><div class="activity-title">${p.productName} → ${p.platforms?.join(', ')}</div><div class="activity-time">Scheduled: ${new Date(p.scheduledAt).toLocaleString()}</div></div></div>`).join('');
+  return renderPostHistory();
 }
+
+
 
 // ═══════════════════════════════════════════════════
 // INFLUENCER MANAGER
@@ -3644,7 +4083,7 @@ async function runDressSwap() {
     const base64Data = swapState.photoBase64.split(',')[1];
     const mimeType   = swapState.photoBase64.split(';')[0].split(':')[1] || 'image/jpeg';
 
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3779,10 +4218,10 @@ function renderSwapResult(swapId, outfitDesc, visualDesc, caption, hashtags, ori
         '<div id="retry-ai-panel" style="display:none;margin-top:12px;background:var(--bg3);border-radius:10px;padding:12px;">' +
           '<div style="font-size:0.72rem;font-weight:600;margin-bottom:8px;">Choose AI Model for retry:</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
-            '<button class="btn btn-xs btn-primary" onclick="retryWithModel(\'gemini-2.0-flash\')">Gemini 2.0 Flash</button>' +
+            '<button class="btn btn-xs btn-primary" onclick="retryWithModel(\'gemini-1.5-flash\')">Gemini 2.0 Flash</button>' +
             '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-pro\')">Gemini 1.5 Pro</button>' +
-            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-2.0-flash\',0.5)">Gemini (conservative)</button>' +
-            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-2.0-flash\',1.2)">Gemini (creative)</button>' +
+            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-flash\',0.5)">Gemini (conservative)</button>' +
+            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-flash\',1.2)">Gemini (creative)</button>' +
           '</div>' +
         '</div>' +
 
@@ -4487,7 +4926,7 @@ async function autoUploadProductToWebsite(product) {
       const prompt = 'Generate for this Indian fashion affiliate product:\n' +
         'Product: ' + product.name + '\nCategory: ' + product.category + '\nPrice: ' + product.price + '\n\n' +
         'Respond ONLY in JSON (no markdown):\n{"seoTitle":"...","description":"..."}';
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 200 } })
@@ -4906,7 +5345,7 @@ async function generateStyleRefGemini(variations, strength, extra) {
     'Make each variation meaningfully different (lighting angle, background mood, pose variation).'
   });
 
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.95, maxOutputTokens: 2000 } })
@@ -5421,7 +5860,7 @@ async function analyzeProductScreenshot(item) {
   const key=APP.storage.apis?.gemini_flash||APP.storage.apis?.gemini_pro; if(!key) return;
   try {
     const prompt=`This is a screenshot of a ${item.type} page from ${item.domain}. As an Indian fashion affiliate marketer, extract: product name/price, key selling points, discount shown, affiliate opportunity score (1-10), quick recommendation for @fabricane. Be concise, 4-6 bullets.`;
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+key,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{image_url:{url:item.imgSrc}},{text:prompt}]}]})});
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{image_url:{url:item.imgSrc}},{text:prompt}]}]})});
     if(!res.ok) throw new Error('Gemini '+res.status);
     const data=await res.json();
     const analysis=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
@@ -5622,7 +6061,7 @@ async function readEKScreenshot(geminiKey,dataUrl) {
   const b64=dataUrl.split(',')[1]; const mimeType=dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
   const prompt='This is an EarnKaro affiliate app screenshot. Extract these values and return ONLY valid JSON:\n{"totalEarnings":0,"clicks":0,"orders":0,"pendingEarnings":0,"confirmedEarnings":0,"todayEarnings":0,"monthEarnings":0,"notes":"what you saw"}\nUse 0 for any value not visible.';
   try {
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+geminiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:b64}},{text:prompt}]}]})});
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+geminiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:b64}},{text:prompt}]}]})});
     if(!res.ok) throw new Error('Gemini '+res.status);
     const data=await res.json();
     const rawText=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
@@ -5807,10 +6246,13 @@ const API_CATEGORIES = [
     { id:'freesound', name:'Freesound API', desc:'freesound.org · royalty-free', tier:'Free' },
   ]},
   { name:'Social Media', icon:'📱', apis:[
-    { id:'instagram', name:'Instagram API', desc:'developers.facebook.com', tier:'Free' },
-    { id:'facebook', name:'Facebook API', desc:'developers.facebook.com', tier:'Free' },
-    { id:'pinterest', name:'Pinterest API', desc:'developers.pinterest.com', tier:'Free' },
-    { id:'manychat', name:'ManyChat API', desc:'manychat.com · free tier', tier:'Free' },
+    { id:'instagram_token', name:'Instagram Access Token', desc:'Facebook Developer App → Instagram Graph API', tier:'Free' },
+    { id:'instagram_user_id', name:'Instagram User ID', desc:'Your Instagram Business Account ID number', tier:'Free' },
+    { id:'facebook_token', name:'Facebook Page Token', desc:'Facebook Developer App → Page Access Token', tier:'Free' },
+    { id:'facebook_page_id', name:'Facebook Page ID', desc:'Your Facebook Page ID number', tier:'Free' },
+    { id:'pinterest_token', name:'Pinterest Access Token', desc:'developers.pinterest.com → OAuth Token', tier:'Free' },
+    { id:'pinterest_board_id', name:'Pinterest Board ID', desc:'Your Pinterest Board ID to post to', tier:'Free' },
+    { id:'manychat', name:'ManyChat API', desc:'manychat.com → Settings → API → API Key', tier:'Free' },
   ]},
   { name:'Communication', icon:'📧', apis:[
     { id:'slack', name:'Slack API', desc:'api.slack.com · xoxb-...', tier:'Free' },
@@ -6064,48 +6506,97 @@ function initWebhookUI() {
 // ═══════════════════════════════════════════════════
 // AI API CALLS
 // ═══════════════════════════════════════════════════
-async function callAI(type,product) {
-  const apis=APP.storage.apis||{};
-  const getModel=()=>{
-    if(['caption','hashtags','pin_title','facebook','chat','search_summary'].includes(type)){
-      if(apis.gemini_flash?.length>4) return 'gemini_flash';
-      if(apis.gemini_pro?.length>4) return 'gemini_pro';
-      if(apis.claude?.length>4) return 'claude';
-      if(apis.openai_gpt4o?.length>4) return 'gpt4o';
-    }
-    if(type==='script'){if(apis.gemini_pro?.length>4)return 'gemini_pro';if(apis.claude?.length>4)return 'claude';if(apis.gemini_flash?.length>4)return 'gemini_flash';}
+async function callAI(type, product) {
+  const apis = APP.storage.apis || {};
+
+  function getBestModel() {
+    if (apis.claude?.length > 4)          return 'claude';
+    if (apis.openai_gpt4o?.length > 4)    return 'openai';
+    if (apis.groq?.length > 4)            return 'groq';
+    if (apis.gemini_flash?.length > 4)    return 'gemini';
+    if (apis.deepseek?.length > 4)        return 'deepseek';
+    if (apis.xai?.length > 4)             return 'xai';
     return null;
+  }
+
+  const model = getBestModel();
+  const prompts = {
+    caption:        `Write an engaging Instagram caption for Indian fashion affiliate: ${product.name}, ${product.category}, ${product.price}. Include emojis, price, #ad #affiliate, CTA. Include link.fans/fabricane. Max 150 words.`,
+    hashtags:       `Generate 30 hashtags for ${product.name} (${product.category}) for Indian fashion affiliate post. Include #ad #affiliate #indianfashion. Return hashtags only.`,
+    pin_title:      `Write Pinterest SEO title (max 100 chars) for: ${product.name}, ${product.category}, ${product.price}. Indian fashion keywords. No hashtags.`,
+    facebook:       `Write Facebook post for ${product.name} (${product.price}). Friendly tone, CTA to affiliate link, #ad #affiliate. Max 100 words.`,
+    script:         `Write 30-second Instagram Reel script for ${product.name} (${product.category}). Energetic, Indian fashion vibe. Hook + showcase + CTA. Include #ad.`,
+    img_prompt:     `Stable Diffusion prompt for Indian fashion product photo: ${product.name} (${product.category}). Lighting, background, pose, style. 80 words max.`,
+    search_summary: `Summarize search results about "${product.name}" in 3 sentences for Indian affiliate marketing: ${JSON.stringify(product.searchResults||'').slice(0,500)}`,
+    chat:           `${product.systemContext||''}
+
+User: ${product.name}`
   };
-  const model=getModel();
-  const prompts={
-    caption:`Write an Instagram caption for: ${product.name}, ${product.category}, ${product.price} on ${product.platform}. Include emojis, mention price, add #ad and #affiliate, say 'link in bio', end with CTA. Include link.fans/fabricane. Be engaging and Indian-fashion-savvy.`,
-    hashtags:`Generate 30 hashtags for ${product.name} (${product.category}) for Indian fashion affiliate post. Mix popular, medium, niche Indian hashtags. Include #ad #affiliate. Return only hashtags.`,
-    pin_title:`Write a Pinterest SEO-optimized title (max 100 chars) for: ${product.name}, ${product.category}, ${product.price}. Include Indian fashion keywords. No hashtags.`,
-    facebook:`Write a Facebook post for ${product.name} (${product.price}) on ${product.platform}. Friendly tone, include price, CTA to affiliate link, #ad #affiliate.`,
-    script:`Write a 30-second Instagram Reel script for ${product.name} (${product.category}). Energetic, personal, trendy. Opening hook + product showcase + CTA to link in bio.`,
-    img_prompt:`Write a Stable Diffusion prompt for professional fashion product photo for: ${product.name} (${product.category}). Include lighting, background, style, angle. 100 words max.`,
-    search_summary:`Summarize these search results about "${product.name}" in 3-4 sentences. Focus on affiliate marketing opportunities and Indian market relevance: ${JSON.stringify(product.searchResults||'').slice(0,500)}`,
-    chat:`${product.systemContext||''}\n\nUser: ${product.name}`
-  };
-  const prompt=prompts[type]||'Generate content for '+product.name;
-  if(model==='gemini_flash'||model==='gemini_pro'||model==='gemini_31_flash'){
-    const modelId=model==='gemini_pro'?'gemini-1.5-pro':'gemini-2.0-flash';
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apis[model]}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
-    if(!res.ok) throw new Error('Gemini '+res.status+': '+await res.text());
-    const data=await res.json(); return data.candidates?.[0]?.content?.parts?.[0]?.text||'No response';
+  const prompt = prompts[type] || 'Generate content for ' + product.name;
+
+  if (model === 'claude') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apis.claude, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('Claude ' + res.status);
+    const data = await res.json();
+    return data.content?.[0]?.text || 'No response';
   }
-  if(model==='claude'){
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apis.claude,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1024,messages:[{role:'user',content:prompt}]})});
-    if(!res.ok) throw new Error('Claude '+res.status);
-    const data=await res.json(); return data.content?.[0]?.text||'No response';
+  if (model === 'openai') {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apis.openai_gpt4o },
+      body: JSON.stringify({ model: 'gpt-4o', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('OpenAI ' + res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || 'No response';
   }
-  if(model==='gpt4o'){
-    const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apis.openai_gpt4o},body:JSON.stringify({model:'gpt-4o',max_tokens:1024,messages:[{role:'user',content:prompt}]})});
-    if(!res.ok) throw new Error('GPT-4o '+res.status);
-    const data=await res.json(); return data.choices?.[0]?.message?.content||'No response';
+  if (model === 'groq') {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apis.groq },
+      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('Groq ' + res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || 'No response';
   }
-  return generateMockContent(type,product);
+  if (model === 'gemini') {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apis.gemini_flash, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    if (!res.ok) throw new Error('Gemini ' + res.status);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+  }
+  if (model === 'deepseek') {
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apis.deepseek },
+      body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('DeepSeek ' + res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || 'No response';
+  }
+  if (model === 'xai') {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apis.xai },
+      body: JSON.stringify({ model: 'grok-beta', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('XAI ' + res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || 'No response';
+  }
+  showToast('⚠️ Add Claude or Groq key in Settings → AI Keys', 'warning');
+  return generateMockContent(type, product);
 }
+
 
 function generateMockContent(type,product) {
   const name=product?.name||'Product';
