@@ -1479,7 +1479,7 @@ async function fetchTrends() {
   if (trendingEl) trendingEl.innerHTML = '<div style="padding:20px;text-align:center;"><span class="spinner" style="font-size:1.5rem;">⟳</span><div style="margin-top:8px;font-size:0.78rem;color:var(--text2);">Fetching India trends...</div></div>';
 
   const serperKey = APP.storage.apis?.serper;
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
 
   if (!serperKey && !APP.storage.apis?.google_search) {
     if (trendingEl) trendingEl.innerHTML = renderTrendingSection();
@@ -1519,12 +1519,12 @@ async function fetchTrends() {
           '{"songs":[{"title":"song name","artist":"artist name","trend":"🔥 Viral"}],"hashtags":["#tag1","#tag2"],"topics":[{"title":"topic","volume":"10K posts"}]}\n' +
           'Focus on Indian Reels audio, fashion/beauty hashtags. Max 8 songs, 20 hashtags, 6 topics. Data: ' + raw.slice(0,1500);
 
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
         });
         const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
@@ -2460,7 +2460,7 @@ function carouselDrop(el) {
 
 // AI generation for carousel
 async function generateCarouselWithAI() {
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
   if (!carouselSlides.length) { showToast('⚠️ Add at least one slide first', 'warning'); return; }
 
@@ -2478,13 +2478,13 @@ async function generateCarouselWithAI() {
     '{"slides":[{"slide":1,"text":"..."},...],"caption":"...","hashtags":"..."}';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 1000 } })
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
     const json = JSON.parse(text.replace(/```json|```/g,'').trim());
 
     (json.slides || []).forEach(function(s) {
@@ -2515,12 +2515,12 @@ async function genSlideText(idx) {
   const prompt = 'Write a short compelling Instagram carousel slide text (1-2 sentences, max 80 chars) for slide ' + (parseInt(idx)+1) + ' of a carousel about: ' + (prod?.name || 'Indian fashion product') + '. Be engaging and trendy. Respond with just the text, no quotes.';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
-    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    const text = ((data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '').trim();
     carouselSlides[parseInt(idx)].text = text;
     refreshCarouselUI();
     showToast('✅ Slide text generated', 'success');
@@ -2819,7 +2819,7 @@ function reelDrop(el) {
 
 // AI generation for reel
 async function generateReelWithAI() {
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
   if (!reelScenes.length) { showToast('⚠️ Add at least one scene first', 'warning'); return; }
 
@@ -2838,13 +2838,13 @@ async function generateReelWithAI() {
     '{"scenes":[{"scene":1,"voiceover":"...","onScreenText":"...","transition":"Cut","durationSec":3},...],\n"caption":"...","hashtags":"..."}';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.85, maxOutputTokens: 1200 } })
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
     const json = JSON.parse(text.replace(/```json|```/g,'').trim());
 
     (json.scenes || []).forEach(function(s) {
@@ -2880,12 +2880,12 @@ async function genSceneVoiceover(idx) {
   const prompt = 'Write a short voiceover line for scene ' + (parseInt(idx)+1) + ' of an Instagram Reel about ' + (prod?.name || 'Indian fashion') + '. Max 15 words. Energetic and trendy. No quotes.';
 
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
-    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    const text = ((data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '').trim();
     reelScenes[parseInt(idx)].voiceover = text;
     refreshReelUI();
     showToast('🎙️ Voiceover generated', 'success');
@@ -3383,7 +3383,7 @@ async function postToInstagram(caption, imageUrl, product) {
     // Step 1: Create media container
     const createRes = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         image_url: imageUrl.startsWith('data:') ? null : imageUrl,
         caption: caption,
@@ -3400,7 +3400,7 @@ async function postToInstagram(caption, imageUrl, product) {
     await sleep(2000);
     const publishRes = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media_publish`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         creation_id: containerId,
         access_token: token
@@ -3439,7 +3439,7 @@ async function postToFacebook(caption, imageUrl, product) {
 
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -4044,7 +4044,7 @@ function resetSwapSteps() {
 }
 
 async function runDressSwap() {
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   if (!geminiKey) { showToast('⚠️ Gemini API key required','warning','Settings → API Keys → Gemini Flash'); return; }
   if (!swapState.photoBase64) { showToast('⚠️ Select a model photo first','warning'); return; }
   const outfitDesc = document.getElementById('swap-outfit-desc')?.value.trim();
@@ -4083,9 +4083,9 @@ async function runDressSwap() {
     const base64Data = swapState.photoBase64.split(',')[1];
     const mimeType   = swapState.photoBase64.split(';')[0].split(':')[1] || 'image/jpeg';
 
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64Data } }, { text: prompt }] }],
         generationConfig: { temperature: 0.9, maxOutputTokens: 1400 }
@@ -4094,7 +4094,7 @@ async function runDressSwap() {
 
     if (!res.ok) throw new Error('Gemini ' + res.status);
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
     if (!text) throw new Error('Empty response from Gemini');
 
     // Parse sections
@@ -4268,7 +4268,7 @@ function showRetryDifferentModel() {
 }
 
 async function retryWithModel(modelId, temperature) {
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   if (!geminiKey) { showToast('⚠️ Gemini key required','warning'); return; }
   if (!swapState.photoBase64) { showToast('⚠️ No photo selected','warning'); return; }
 
@@ -4291,9 +4291,9 @@ async function retryWithModel(modelId, temperature) {
     const mimeType   = swapState.photoBase64.split(';')[0].split(':')[1] || 'image/jpeg';
     const temp = typeof temperature === 'number' ? temperature : 0.9;
 
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+modelId+':generateContent?key='+geminiKey, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64Data } }, { text: prompt }] }],
         generationConfig: { temperature: Math.min(2, Math.max(0, temp)), maxOutputTokens: 1400 }
@@ -4301,7 +4301,7 @@ async function retryWithModel(modelId, temperature) {
     });
     if (!res.ok) throw new Error(modelId + ' error ' + res.status);
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
     if (!text) throw new Error('Empty response');
 
     const vizMatch = text.match(/##\s*VISUAL DESCRIPTION\s*([\s\S]*?)(?=##|$)/i);
@@ -4917,7 +4917,7 @@ async function autoUploadProductToWebsite(product) {
   product.websiteSection = section;
 
   // Try to generate SEO title with Gemini
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   let seoTitle = product.name;
   let seoDesc = '';
 
@@ -4926,13 +4926,13 @@ async function autoUploadProductToWebsite(product) {
       const prompt = 'Generate for this Indian fashion affiliate product:\n' +
         'Product: ' + product.name + '\nCategory: ' + product.category + '\nPrice: ' + product.price + '\n\n' +
         'Respond ONLY in JSON (no markdown):\n{"seoTitle":"...","description":"..."}';
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 200 } })
+        headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
       });
       const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
       const json = JSON.parse(text.replace(/```json|```/g,'').trim());
       seoTitle = json.seoTitle || seoTitle;
       seoDesc  = json.description || '';
@@ -5319,7 +5319,7 @@ async function generateStyleRef() {
 
 // ── Gemini describe mode (always works, free) ────────────────────
 async function generateStyleRefGemini(variations, strength, extra) {
-  const geminiKey = APP.storage.apis?.gemini_flash || APP.storage.apis?.gemini_pro;
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   if (!geminiKey) throw new Error('Gemini API key required — add in Settings');
 
   const refB64  = styleRefState.referenceBase64.split(',')[1];
@@ -5345,14 +5345,14 @@ async function generateStyleRefGemini(variations, strength, extra) {
     'Make each variation meaningfully different (lighting angle, background mood, pose variation).'
   });
 
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + geminiKey, {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.95, maxOutputTokens: 2000 } })
   });
   if (!res.ok) throw new Error('Gemini ' + res.status);
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
   if (!text) throw new Error('Empty response');
 
   // Parse variations
@@ -5710,7 +5710,7 @@ function exportVaultCSV() {
 // ═══════════════════════════════════════════════════
 function renderSearch() {
   const history=APP.storage.searchHistory||[];
-  const hasSSKey=(APP.storage.apis?.screenshotlayer?.length>4);
+  const hasSSKey=(APP.storage.apis?.screenshot_api?.length>4||APP.storage.apis?.screenshotlayer?.length>4);
   const html=`
   <div class="page-header"><h1>AI <span>Search</span></h1><p>Google Search + Gemini AI + Screenshotlayer</p></div>
   <div style="position:relative;margin-bottom:16px;">
@@ -5791,15 +5791,24 @@ async function doAISearch() {
 
 // ── Screenshotlayer ──────────────────────────────────────────────
 function buildSSUrl(targetUrl,opts={}) {
-  const key=APP.storage.apis?.screenshotlayer; if(!key) return null;
-  const params=new URLSearchParams({access_key:key,url:targetUrl,viewport:opts.viewport||'1280x800',width:opts.width||1280,format:'PNG',force:opts.force?1:0,delay:opts.delay||2,fullpage:opts.fullpage?1:0,ttl:3600});
-  return 'https://api.screenshotlayer.com/api/capture?'+params.toString();
+  // Support screenshotapi.net (primary) or screenshotlayer (fallback)
+  const key1 = APP.storage.apis?.screenshot_api;
+  const key2 = APP.storage.apis?.screenshotlayer;
+  if (key1 && key1.length > 4) {
+    const params = new URLSearchParams({ token: key1, url: targetUrl, width: opts.width||1280, height: 800, output: 'image', file_type: 'png', wait_for_event: 'load' });
+    return 'https://shot.screenshotapi.net/screenshot?' + params.toString();
+  }
+  if (key2 && key2.length > 4) {
+    const params = new URLSearchParams({ access_key: key2, url: targetUrl, viewport: opts.viewport||'1280x800', width: opts.width||1280, format: 'PNG', delay: opts.delay||2 });
+    return 'https://api.screenshotlayer.com/api/capture?' + params.toString();
+  }
+  return null;
 }
 
 async function screenshotURL(url,targetElId) {
   if(!url||!url.startsWith('http')) { showToast('⚠️ Enter a valid URL','warning'); return; }
-  const key=APP.storage.apis?.screenshotlayer;
-  if(!key||key.length<4) { showToast('⚠️ Add Screenshotlayer key in Settings','warning'); return; }
+  const key=APP.storage.apis?.screenshot_api||APP.storage.apis?.screenshotlayer;
+  if(!key||key.length<4) { showToast('⚠️ Add Screenshot API key in Settings → Screenshot AI','warning','Get free key at screenshotapi.net'); return; }
   const resultEl=document.getElementById(targetElId||'ss-result');
   if(resultEl) { resultEl.style.display='block'; resultEl.innerHTML='<div class="card"><span class="spinner">⟳</span> Capturing '+url+'...</div>'; }
   try {
@@ -5819,7 +5828,7 @@ async function screenshotURL(url,targetElId) {
 }
 
 async function fetchScreenshot(url,elId) {
-  const key=APP.storage.apis?.screenshotlayer; if(!key||key.length<4) return;
+  const key=APP.storage.apis?.screenshot_api||APP.storage.apis?.screenshotlayer; if(!key||key.length<4) return;
   const el=document.getElementById(elId); if(!el) return;
   const ssUrl=buildSSUrl(url,{delay:1,width:400,viewport:'800x600'});
   el.innerHTML=`<img src="${ssUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=font-size:1rem;opacity:0.3>📸</span>'">`;
@@ -5860,10 +5869,10 @@ async function analyzeProductScreenshot(item) {
   const key=APP.storage.apis?.gemini_flash||APP.storage.apis?.gemini_pro; if(!key) return;
   try {
     const prompt=`This is a screenshot of a ${item.type} page from ${item.domain}. As an Indian fashion affiliate marketer, extract: product name/price, key selling points, discount shown, affiliate opportunity score (1-10), quick recommendation for @fabricane. Be concise, 4-6 bullets.`;
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{image_url:{url:item.imgSrc}},{text:prompt}]}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'url',url:item.imgSrc}},{type:'text',text:prompt}]}]})});
     if(!res.ok) throw new Error('Gemini '+res.status);
     const data=await res.json();
-    const analysis=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const analysis=(data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text)||'';
     const ss=(APP.storage.screenshots||[]).find(s=>s.id===item.id);
     if(ss){ss.geminiAnalysis=analysis;saveStorage('screenshots');}
     const resultEl=document.getElementById('ss-result');
@@ -5891,7 +5900,7 @@ function addProductFromSearch(title,url) {
 async function screenshotMyPinterest() {
   const handle=APP.storage.settings?.pintHandle||'fashionwithfabricane';
   const url='https://www.pinterest.com/'+handle+'/';
-  const key=APP.storage.apis?.screenshotlayer;
+  const key=APP.storage.apis?.screenshot_api||APP.storage.apis?.screenshotlayer;
   if(!key||key.length<4){showToast('⚠️ Add Screenshotlayer key','warning');return;}
   const el=document.getElementById('pint-ss-area');
   if(el){el.innerHTML='<div style="padding:20px;text-align:center;"><span class="spinner">⟳</span> Capturing...</div>';el.style.display='block';}
@@ -6061,10 +6070,10 @@ async function readEKScreenshot(geminiKey,dataUrl) {
   const b64=dataUrl.split(',')[1]; const mimeType=dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
   const prompt='This is an EarnKaro affiliate app screenshot. Extract these values and return ONLY valid JSON:\n{"totalEarnings":0,"clicks":0,"orders":0,"pendingEarnings":0,"confirmedEarnings":0,"todayEarnings":0,"monthEarnings":0,"notes":"what you saw"}\nUse 0 for any value not visible.';
   try {
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+geminiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:b64}},{text:prompt}]}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':geminiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mimeType,data:b64}},{type:'text',text:prompt}]}]})});
     if(!res.ok) throw new Error('Gemini '+res.status);
     const data=await res.json();
-    const rawText=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const rawText=(data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text)||'';
     const jsonMatch=rawText.match(/\{[\s\S]*\}/); if(!jsonMatch) throw new Error('Could not parse response');
     const parsed=JSON.parse(jsonMatch[0]);
     const earnEl=document.getElementById('ek-val-earn'); const clicksEl=document.getElementById('ek-val-clicks'); const ordersEl=document.getElementById('ek-val-orders'); const notesEl=document.getElementById('ek-raw-read');
@@ -6219,69 +6228,55 @@ function exportAnalyticsCSV() {
 // SETTINGS — API Keys
 // ═══════════════════════════════════════════════════
 const API_CATEGORIES = [
-  { name:'Text & AI Generation', icon:'🤖', apis:[
-    { id:'claude', name:'Claude (Sonnet)', desc:'console.anthropic.com · sk-ant-...', tier:'Paid' },
-    { id:'openai_gpt4o', name:'OpenAI GPT-4o', desc:'platform.openai.com', tier:'Paid' },
-    { id:'gemini_flash', name:'Gemini 2.5 Flash', desc:'aistudio.google.com · FREE · Best choice', tier:'Free' },
-    { id:'gemini_pro', name:'Gemini Pro', desc:'aistudio.google.com · Limited free', tier:'Limited' },
-    { id:'gemini_31_flash', name:'Gemini 3.1 Flash', desc:'aistudio.google.com · FREE', tier:'Free' },
-    { id:'groq', name:'Groq', desc:'console.groq.com · gsk-... · FREE', tier:'Free' },
-    { id:'deepseek', name:'DeepSeek', desc:'platform.deepseek.com', tier:'Limited' },
-    { id:'together_ai', name:'Together AI', desc:'api.together.xyz · free credit', tier:'Free' },
-    { id:'fireworks', name:'Fireworks AI', desc:'fireworks.ai', tier:'Free' },
-    { id:'xai_grok', name:'xAI Grok', desc:'console.x.ai', tier:'Limited' },
-    { id:'cohere', name:'Cohere', desc:'dashboard.cohere.com · free tier', tier:'Free' },
+  { name:'🤖 AI Generation (Primary)', icon:'🤖', apis:[
+    { id:'claude', name:'Claude (Sonnet) ⭐ PRIMARY', desc:'console.anthropic.com · sk-ant-... · Powers all captions, hashtags, scripts', tier:'Paid' },
+    { id:'openai_gpt4o', name:'OpenAI GPT-4o', desc:'platform.openai.com · Fallback AI', tier:'Paid' },
+    { id:'groq', name:'Groq (Free & Fast)', desc:'console.groq.com · gsk-... · FREE fallback', tier:'Free' },
+    { id:'deepseek', name:'DeepSeek', desc:'platform.deepseek.com · Fallback', tier:'Limited' },
+    { id:'xai', name:'xAI Grok', desc:'console.x.ai · Fallback', tier:'Limited' },
+    { id:'cohere', name:'Cohere', desc:'dashboard.cohere.com · Fallback', tier:'Free' },
   ]},
-  { name:'Image Generation', icon:'🎨', apis:[
-    { id:'dalle3', name:'DALL-E 3', desc:'platform.openai.com · Best quality', tier:'Paid' },
-    { id:'stable_diffusion', name:'Stable Diffusion', desc:'stablediffusionapi.com · free tier', tier:'Free' },
-    { id:'stability_ai', name:'Stability AI', desc:'platform.stability.ai', tier:'Limited' },
-    { id:'huggingface', name:'Hugging Face', desc:'huggingface.co · hf-... · FREE', tier:'Free' },
-    { id:'replicate', name:'Replicate', desc:'replicate.com · r8-... · Virtual try-on', tier:'Limited' },
-    { id:'openjourney', name:'Openjourney V4', desc:'huggingface.co · FREE', tier:'Free' },
+  { name:'🎨 Image Generation', icon:'🎨', apis:[
+    { id:'stability_ai', name:'Stability AI ⭐', desc:'platform.stability.ai · img2img + style reference', tier:'Limited' },
+    { id:'replicate', name:'Replicate', desc:'replicate.com · r8-... · Virtual try-on + FLUX', tier:'Limited' },
+    { id:'huggingface', name:'Hugging Face', desc:'huggingface.co · hf-... · FREE image models', tier:'Free' },
   ]},
-  { name:'Voice & Music', icon:'🎵', apis:[
-    { id:'elevenlabs', name:'ElevenLabs', desc:'elevenlabs.io · 10k chars/month FREE', tier:'Free' },
-    { id:'musicgen', name:'MusicGen (HuggingFace)', desc:'huggingface.co · FREE', tier:'Free' },
-    { id:'freesound', name:'Freesound API', desc:'freesound.org · royalty-free', tier:'Free' },
+  { name:'🎵 Voice', icon:'🎵', apis:[
+    { id:'elevenlabs', name:'ElevenLabs ⭐', desc:'elevenlabs.io · Reel voiceover · 10k chars/month FREE', tier:'Free' },
   ]},
-  { name:'Social Media', icon:'📱', apis:[
-    { id:'instagram_token', name:'Instagram Access Token', desc:'Facebook Developer App → Instagram Graph API', tier:'Free' },
-    { id:'instagram_user_id', name:'Instagram User ID', desc:'Your Instagram Business Account ID number', tier:'Free' },
-    { id:'facebook_token', name:'Facebook Page Token', desc:'Facebook Developer App → Page Access Token', tier:'Free' },
-    { id:'facebook_page_id', name:'Facebook Page ID', desc:'Your Facebook Page ID number', tier:'Free' },
-    { id:'pinterest_token', name:'Pinterest Access Token', desc:'developers.pinterest.com → OAuth Token', tier:'Free' },
-    { id:'pinterest_board_id', name:'Pinterest Board ID', desc:'Your Pinterest Board ID to post to', tier:'Free' },
-    { id:'manychat', name:'ManyChat API', desc:'manychat.com → Settings → API → API Key', tier:'Free' },
+  { name:'📱 Social Media', icon:'📱', apis:[
+    { id:'instagram_token', name:'Instagram Access Token ⭐', desc:'Facebook Developer App → Instagram Graph API', tier:'Free' },
+    { id:'instagram_user_id', name:'Instagram User ID ⭐', desc:'Your Instagram Business Account ID number', tier:'Free' },
+    { id:'facebook_token', name:'Facebook Page Token ⭐', desc:'Facebook Developer App → Page Access Token', tier:'Free' },
+    { id:'facebook_page_id', name:'Facebook Page ID ⭐', desc:'Your Facebook Page ID number', tier:'Free' },
+    { id:'pinterest_token', name:'Pinterest Access Token ⭐', desc:'developers.pinterest.com → OAuth Token', tier:'Free' },
+    { id:'pinterest_board_id', name:'Pinterest Board ID ⭐', desc:'Your Pinterest Board ID to post to', tier:'Free' },
+    { id:'manychat', name:'ManyChat API ⭐', desc:'manychat.com → Settings → API → API Key · Auto DM', tier:'Free' },
   ]},
-  { name:'Communication', icon:'📧', apis:[
-    { id:'slack', name:'Slack API', desc:'api.slack.com · xoxb-...', tier:'Free' },
-    { id:'sendgrid', name:'SendGrid', desc:'sendgrid.com · 100/day free', tier:'Free' },
-    { id:'mailgun', name:'Mailgun', desc:'mailgun.com · 1000/month', tier:'Free' },
+  { name:'🔔 Alerts', icon:'🔔', apis:[
+    { id:'sendgrid', name:'SendGrid ⭐', desc:'sendgrid.com · Email alerts · 100/day free', tier:'Free' },
   ]},
-  { name:'Search & Location', icon:'🔍', apis:[
-    { id:'google_search', name:'Google Custom Search', desc:'console.cloud.google.com · 100/day', tier:'Free' },
-    { id:'google_cse_id', name:'Google Search Engine ID', desc:'programmablesearchengine.google.com', tier:'Free' },
-    { id:'serper', name:'Serper.dev', desc:'serper.dev · 2500 free searches', tier:'Free' },
-    { id:'ipstack', name:'IPStack', desc:'ipstack.com · location', tier:'Free' },
+  { name:'🔍 Search & Analytics', icon:'🔍', apis:[
+    { id:'serper', name:'Serper.dev ⭐', desc:'serper.dev · Google Trends · 2500 free searches/month', tier:'Free' },
+    { id:'zenserp', name:'ZenSerp', desc:'zenserp.com · Google Search alternative', tier:'Free' },
+    { id:'ipstack', name:'IPStack', desc:'ipstack.com · Visitor location', tier:'Free' },
   ]},
-  { name:'Screenshots & Custom', icon:'📸', apis:[
+  { name:'📸 Screenshot AI', icon:'📸', apis:[
+    { id:'screenshot_api', name:'Screenshot API ⭐', desc:'screenshotapi.net · Capture any webpage', tier:'Free' },
     { id:'screenshotlayer', name:'Screenshotlayer', desc:'screenshotlayer.com · 100 free/month', tier:'Free' },
     { id:'instagram_webhook', name:'Instagram Webhook Token', desc:'developers.facebook.com · expires 60 days', tier:'Free' },
-    { id:'custom1', name:'Custom API Slot 1', desc:'For future additions', tier:'Custom' },
-    { id:'custom2', name:'Custom API Slot 2', desc:'For future additions', tier:'Custom' },
   ]},
 ];
 
 function renderSettings() {
   const connectedCount=Object.values(APP.storage.apis||{}).filter(v=>v&&v.length>4).length;
-  document.getElementById('badge-apis').textContent=`${connectedCount}/43`;
+  const totalApis = API_CATEGORIES.reduce((s,c)=>s+c.apis.length,0); document.getElementById('badge-apis').textContent=`${connectedCount}/${totalApis}`;
   const html=`
   <div class="page-header"><h1>API <span>Keys</span></h1><p>${connectedCount} APIs connected</p></div>
   <div class="card" style="margin-bottom:20px;background:rgba(155,93,229,0.05);border-color:rgba(155,93,229,0.2);">
-    <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.5rem;">🤖</span><div><div style="font-weight:600;margin-bottom:4px;">Smart Auto-Selection Active</div><div style="font-size:0.78rem;color:var(--text2);">Captions → Gemini Flash (free). Images → DALL-E 3. Voice → ElevenLabs. Trends → Serper.</div></div></div>
+    <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.5rem;">🤖</span><div><div style="font-weight:600;margin-bottom:4px;">Smart Auto-Selection Active</div><div style="font-size:0.78rem;color:var(--text2);">Captions → Claude (primary). Images → Stability AI. Voice → ElevenLabs. Trends → Serper.</div></div></div>
   </div>
-  <div class="progress" style="margin-bottom:8px;"><div class="progress-bar" style="width:${(connectedCount/43)*100}%;"></div></div>
+  <div class="progress" style="margin-bottom:8px;"><div class="progress-bar" style="width:${(connectedCount/API_CATEGORIES.reduce((s,c)=>s+c.apis.length,0))*100}%;"></div></div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
     <div style="font-size:0.75rem;color:var(--text2);">${connectedCount}/43 APIs configured</div>
     <button class="btn btn-primary btn-sm" onclick="saveAllAPIKeys()" style="gap:6px;">💾 Save All Keys</button>
@@ -6565,13 +6560,13 @@ User: ${product.name}`
     return data.choices?.[0]?.message?.content || 'No response';
   }
   if (model === 'gemini') {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apis.gemini_flash, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
     });
     if (!res.ok) throw new Error('Gemini ' + res.status);
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+    return (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || 'No response';
   }
   if (model === 'deepseek') {
     const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
