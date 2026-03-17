@@ -721,7 +721,7 @@ document.getElementById('manifest-link').href = URL.createObjectURL(blob);
     <div class="chat-avatar">✨</div>
     <div>
       <div class="chat-title">Fabricane AI</div>
-      <div class="chat-sub">● Online — Gemini powered</div>
+      <div class="chat-sub">● Online — Claude powered</div>
     </div>
     <button class="modal-close" style="margin-left:auto;" onclick="toggleChatbot()">✕</button>
   </div>
@@ -1392,7 +1392,7 @@ function calcTodayEarnings() {
 function renderTrendingSection() {
   const trends = APP.storage.trends;
   const hasSerper = (APP.storage.apis?.serper?.length > 4);
-  const hasGoogleSearch = (APP.storage.apis?.google_search?.length > 4);
+  const hasGoogleSearch = (APP.storage.apis?.serper?.length > 4);
   const hasAnyKey = hasSerper || hasGoogleSearch;
 
   // No API key at all
@@ -1481,7 +1481,7 @@ async function fetchTrends() {
   const serperKey = APP.storage.apis?.serper;
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
 
-  if (!serperKey && !APP.storage.apis?.google_search) {
+  if (!serperKey && !APP.storage.apis?.serper) {
     if (trendingEl) trendingEl.innerHTML = renderTrendingSection();
     if (btn) btn.innerHTML = '🔄 Fetch';
     return;
@@ -1510,7 +1510,7 @@ async function fetchTrends() {
       topicResults.status === 'fulfilled' ? topicResults.value : []
     );
 
-    // If Gemini available, use it to clean/enhance the results
+    // If Claude available, use it to clean/enhance the results
     let enhancedSongs = songs, enhancedHashtags = hashtags;
     if (geminiKey && (songs.length || hashtags.length)) {
       try {
@@ -1532,7 +1532,7 @@ async function fetchTrends() {
           if (parsed.hashtags?.length) enhancedHashtags = parsed.hashtags;
           if (parsed.topics?.length) topics.splice(0, topics.length, ...parsed.topics);
         }
-      } catch(e) { /* use raw results if Gemini fails */ }
+      } catch(e) { /* use raw results if Claude fails */ }
     }
 
     // Save to storage
@@ -1541,7 +1541,7 @@ async function fetchTrends() {
       hashtags: enhancedHashtags,
       topics: topics,
       fetchedAt: Date.now(),
-      source: serperKey ? 'Serper + Gemini' : 'Google Search'
+      source: serperKey ? 'Serper + Claude' : 'Serper Search'
     };
     saveStorage('trends');
 
@@ -1631,7 +1631,7 @@ function parseTopicsFromResults(results) {
 // Auto-fetch if data is older than 6 hours
 function fetchTrendsIfStale() {
   const fetched = APP.storage.trends?.fetchedAt;
-  const hasKey = APP.storage.apis?.serper?.length > 4 || APP.storage.apis?.google_search?.length > 4;
+  const hasKey = APP.storage.apis?.serper?.length > 4 || APP.storage.apis?.serper?.length > 4;
   if (!hasKey) return; // No key, show empty state
   if (!fetched || (Date.now() - fetched > 6 * 60 * 60 * 1000)) {
     fetchTrends(); // Auto-fetch in background
@@ -1682,7 +1682,7 @@ function renderActivity() {
 }
 
 function renderAPIStatusGrid() {
-  const apiNames = ['Claude','GPT-4o','Gemini 2.5 Flash','Gemini 3 Pro','DALL-E 3','Stable Diffusion','ElevenLabs','Instagram','Pinterest','Facebook','ManyChat','Slack','SendGrid'];
+  const apiNames = ['Claude','GPT-4o','Groq','Stability AI','Replicate','ElevenLabs','Instagram','Facebook','Pinterest','ManyChat','SendGrid','Serper'];
   return apiNames.map(name => {
     const key = name.toLowerCase().replace(/[^a-z]/g,'_');
     const connected = APP.storage.apis?.[key] && APP.storage.apis[key].length > 4;
@@ -1937,8 +1937,8 @@ function renderContentGenerator() {
           <div><label>Content Model</label>
             <select id="cg-text-model">
               <option value="auto">🤖 Auto Select</option>
-              <option value="gemini_flash">⚡ Gemini 2.5 Flash (Free)</option>
-              <option value="gemini_pro">🧠 Gemini 3 Pro</option>
+              <option value="claude">⚡ Claude Sonnet (Primary)</option>
+              <option value="groq">🤖 Groq (Fast Free)</option>
               <option value="claude">✨ Claude Sonnet</option>
               <option value="gpt4o">💎 GPT-4o</option>
               <option value="gpt4o_mini">💰 GPT-4o Mini</option>
@@ -1947,8 +1947,8 @@ function renderContentGenerator() {
           <div><label>Image Model</label>
             <select id="cg-img-model">
               <option value="auto">🤖 Auto Select</option>
-              <option value="dalle3">🎨 DALL-E 3 (Premium)</option>
-              <option value="dalle2">🖼️ DALL-E 2 (Budget)</option>
+              <option value="stability_ai">🎨 Stability AI</option>
+              <option value="replicate">🖼️ Replicate</option>
               <option value="dreamlike_photo">📸 Dreamlike Photoreal</option>
               <option value="dreamlike_diff">🌈 Dreamlike Diffusion</option>
               <option value="openjourney">✨ Openjourney V4</option>
@@ -2461,7 +2461,7 @@ function carouselDrop(el) {
 // AI generation for carousel
 async function generateCarouselWithAI() {
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
-  if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
+  if (!geminiKey) { showToast('⚠️ Claude API key required — add in Settings', 'warning'); return; }
   if (!carouselSlides.length) { showToast('⚠️ Add at least one slide first', 'warning'); return; }
 
   const prodId = document.getElementById('cg-product')?.value;
@@ -2505,8 +2505,8 @@ async function generateCarouselWithAI() {
 }
 
 async function genSlideText(idx) {
-  const geminiKey = APP.storage.apis?.gemini_flash;
-  if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq || APP.storage.apis?.openai_gpt4o;
+  if (!geminiKey) { showToast('⚠️ Claude API key required — add in Settings', 'warning'); return; }
   const slide = carouselSlides[parseInt(idx)];
   if (!slide) return;
 
@@ -2630,7 +2630,7 @@ function renderReelBuilder() {
         <div style="font-weight:600;margin-bottom:10px;">🎵 Audio Settings</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
-            <label style="font-size:0.72rem;">Background Music (MusicGen)</label>
+            <label style="font-size:0.72rem;">Background Music (ElevenLabs/HuggingFace)</label>
             <select id="reel-music-vibe" style="width:100%;margin-top:3px;font-size:0.78rem;">
               <option>Upbeat & Trendy</option><option>Soft & Elegant</option>
               <option>Festive & Energetic</option><option>Luxury & Calm</option>
@@ -2645,7 +2645,7 @@ function renderReelBuilder() {
           </div>
         </div>
         <div style="margin-top:10px;">
-          <button class="btn btn-secondary btn-sm" onclick="generateReelAudio()">🎵 Generate Music (MusicGen)</button>
+          <button class="btn btn-secondary btn-sm" onclick="generateReelAudio()">🎵 Generate Music (HuggingFace)</button>
           <button class="btn btn-secondary btn-sm" style="margin-left:6px;" onclick="generateReelVoiceover()">🎙️ Voiceover (ElevenLabs)</button>
         </div>
       </div>
@@ -2820,7 +2820,7 @@ function reelDrop(el) {
 // AI generation for reel
 async function generateReelWithAI() {
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
-  if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
+  if (!geminiKey) { showToast('⚠️ Claude API key required — add in Settings', 'warning'); return; }
   if (!reelScenes.length) { showToast('⚠️ Add at least one scene first', 'warning'); return; }
 
   const prodId = document.getElementById('cg-product')?.value;
@@ -2870,8 +2870,8 @@ async function generateReelWithAI() {
 }
 
 async function genSceneVoiceover(idx) {
-  const geminiKey = APP.storage.apis?.gemini_flash;
-  if (!geminiKey) { showToast('⚠️ Gemini key required', 'warning'); return; }
+  const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq || APP.storage.apis?.openai_gpt4o;
+  if (!geminiKey) { showToast('⚠️ Claude API key required — add in Settings', 'warning'); return; }
   const scene = reelScenes[parseInt(idx)];
   if (!scene) return;
 
@@ -2895,9 +2895,9 @@ async function genSceneVoiceover(idx) {
 }
 
 function generateReelAudio() {
-  const key = APP.storage.apis?.musicgen || APP.storage.apis?.huggingface;
-  if (!key) { showToast('⚠️ MusicGen / HuggingFace API key required', 'warning', 'Settings → Voice & Music → MusicGen'); return; }
-  showToast('🎵 MusicGen: request sent!', 'info', 'Audio will generate via HuggingFace — may take 30-60s');
+  const key = APP.storage.apis?.huggingface || APP.storage.apis?.elevenlabs;
+  if (!key) { showToast('⚠️ HuggingFace API key required', 'warning', 'Settings → Voice → HuggingFace'); return; }
+  showToast('🎵 HuggingFace: generating music...', 'info', 'Audio will generate via HuggingFace — may take 30-60s');
   // MusicGen via HuggingFace Inference API
   const vibe = document.getElementById('reel-music-vibe')?.value || 'Upbeat';
   fetch('https://api-inference.huggingface.co/models/facebook/musicgen-small', {
@@ -2906,8 +2906,8 @@ function generateReelAudio() {
     body: JSON.stringify({ inputs: vibe + ' background music for Indian fashion Instagram Reel, 30 seconds' })
   }).then(res => {
     if (res.ok) { showToast('🎵 Music generated!', 'success', 'Download from HuggingFace response'); }
-    else { showToast('⚠️ MusicGen error ' + res.status, 'warning'); }
-  }).catch(e => showToast('❌ MusicGen failed', 'error', e.message));
+    else { showToast('⚠️ HuggingFace error ' + res.status, 'warning'); }
+  }).catch(e => showToast('❌ Music generation failed', 'error', e.message));
 }
 
 function generateReelVoiceover() {
@@ -3756,7 +3756,7 @@ function renderInfluencer() {
         </div>
 
         <button class="btn btn-primary btn-full" onclick="runDressSwap()" id="swap-generate-btn">
-          👗 Generate Virtual Try-On (Gemini Vision)
+          👗 Generate Virtual Try-On (Claude Vision)
         </button>
 
         <!-- Result area with retry system -->
@@ -4045,7 +4045,7 @@ function resetSwapSteps() {
 
 async function runDressSwap() {
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
-  if (!geminiKey) { showToast('⚠️ Gemini API key required','warning','Settings → API Keys → Gemini Flash'); return; }
+  if (!geminiKey) { showToast('⚠️ Claude API key required', 'warning', 'Settings → API Keys → Claude'); return; }
   if (!swapState.photoBase64) { showToast('⚠️ Select a model photo first','warning'); return; }
   const outfitDesc = document.getElementById('swap-outfit-desc')?.value.trim();
   if (!outfitDesc) { showToast('⚠️ Describe the outfit or pick a product','warning'); return; }
@@ -4058,7 +4058,7 @@ async function runDressSwap() {
   if (resultEl) {
     resultEl.style.display = 'block';
     resultEl.innerHTML = '<div style="padding:30px;text-align:center;"><span class="spinner" style="font-size:2rem;">⟳</span>' +
-      '<div style="margin-top:10px;font-size:0.82rem;color:var(--text2);">Gemini Vision is working...<br><span style="font-size:0.72rem;color:var(--text3);">Analysing model photo + creating outfit description</span></div></div>';
+      '<div style="margin-top:10px;font-size:0.82rem;color:var(--text2);">Claude AI is working...<br><span style="font-size:0.72rem;color:var(--text3);">Analysing model photo + creating outfit description</span></div></div>';
   }
 
   const bg       = document.getElementById('swap-bg')?.value || 'keep original background';
@@ -4092,10 +4092,10 @@ async function runDressSwap() {
       })
     });
 
-    if (!res.ok) throw new Error('Gemini ' + res.status);
+    if (!res.ok) throw new Error('Claude ' + res.status);
     const data = await res.json();
     const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
-    if (!text) throw new Error('Empty response from Gemini');
+    if (!text) throw new Error('Empty response from Claude');
 
     // Parse sections
     const vizMatch  = text.match(/##\s*VISUAL DESCRIPTION\s*([\s\S]*?)(?=##|$)/i);
@@ -4116,7 +4116,7 @@ async function runDressSwap() {
       originalPhoto: swapState.photoBase64,
       photoLabel: swapState.photoLabel,
       gender: swapState.gender,
-      geminiDesc: text,
+      aiDesc: text,
       createdAt: Date.now()
     });
     APP.storage.swapResults = APP.storage.swapResults.slice(0, 30);
@@ -4137,7 +4137,7 @@ async function runDressSwap() {
     showToast('❌ Swap failed', 'error', e.message);
   }
 
-  if (btn) { btn.disabled = false; btn.innerHTML = '👗 Generate Virtual Try-On (Gemini Vision)'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '👗 Generate Virtual Try-On (Claude Vision)'; }
 }
 
 // ── Render swap result with full retry system ────────────────────
@@ -4167,7 +4167,7 @@ function renderSwapResult(swapId, outfitDesc, visualDesc, caption, hashtags, ori
           '<img src="'+originalPhoto+'" style="width:130px;border-radius:10px;border:2px solid var(--pink);">' +
         '</div>' +
         '<div>' +
-          '<div style="font-size:0.68rem;color:var(--purple2);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">🤖 Gemini Visual Description</div>' +
+          '<div style="font-size:0.68rem;color:var(--purple2);font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;">🤖 Claude Visual Description</div>' +
           '<div style="font-size:0.78rem;line-height:1.7;color:var(--text2);max-height:150px;overflow-y:auto;">'+(visualDesc||'').slice(0,500)+'</div>' +
           '<div style="margin-top:8px;padding:8px;background:rgba(245,200,66,0.06);border-radius:8px;font-size:0.7rem;color:var(--gold);">💡 Copy the description above → paste into DALL-E 3 or Stable Diffusion for actual image generation</div>' +
         '</div>' +
@@ -4218,10 +4218,10 @@ function renderSwapResult(swapId, outfitDesc, visualDesc, caption, hashtags, ori
         '<div id="retry-ai-panel" style="display:none;margin-top:12px;background:var(--bg3);border-radius:10px;padding:12px;">' +
           '<div style="font-size:0.72rem;font-weight:600;margin-bottom:8px;">Choose AI Model for retry:</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
-            '<button class="btn btn-xs btn-primary" onclick="retryWithModel(\'gemini-1.5-flash\')">Gemini 2.0 Flash</button>' +
-            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-pro\')">Gemini 1.5 Pro</button>' +
-            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-flash\',0.5)">Gemini (conservative)</button>' +
-            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'gemini-1.5-flash\',1.2)">Gemini (creative)</button>' +
+            '<button class="btn btn-xs btn-primary" onclick="retryWithModel(\'claude-sonnet-4-5\')">Claude Sonnet</button>' +
+            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'groq\')">Groq Fast</button>' +
+            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'claude-sonnet-4-5\',0.3)">Claude (precise)</button>' +
+            '<button class="btn btn-xs btn-secondary" onclick="retryWithModel(\'claude-sonnet-4-5\',1.0)">Claude (creative)</button>' +
           '</div>' +
         '</div>' +
 
@@ -4269,7 +4269,7 @@ function showRetryDifferentModel() {
 
 async function retryWithModel(modelId, temperature) {
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
-  if (!geminiKey) { showToast('⚠️ Gemini key required','warning'); return; }
+  if (!geminiKey) { showToast('⚠️ Claude API key required — add in Settings', 'warning'); return; }
   if (!swapState.photoBase64) { showToast('⚠️ No photo selected','warning'); return; }
 
   const outfitDesc = swapState.lastOutfitDesc || document.getElementById('swap-outfit-desc')?.value.trim();
@@ -4314,7 +4314,7 @@ async function retryWithModel(modelId, temperature) {
 
     const swapId = 'swap_' + Date.now();
     APP.storage.swapResults = APP.storage.swapResults || [];
-    APP.storage.swapResults.unshift({ id: swapId, outfitDesc, caption, hashtags, visualDesc, originalPhoto: swapState.photoBase64, photoLabel: swapState.photoLabel, gender: swapState.gender, geminiDesc: text, createdAt: Date.now(), model: modelId });
+    APP.storage.swapResults.unshift({ id: swapId, outfitDesc, caption, hashtags, visualDesc, originalPhoto: swapState.photoBase64, photoLabel: swapState.photoLabel, gender: swapState.gender, aiDesc: text, createdAt: Date.now(), model: modelId });
     APP.storage.swapResults = APP.storage.swapResults.slice(0, 30);
     saveStorage('swapResults');
     swapState.lastSwapId = swapId;
@@ -4395,7 +4395,7 @@ function saveSwapToVault(swapId) {
     category: swap.gender === 'male' ? 'Men\'s Fashion' : 'Ethnic Wear',
     caption: swap.caption,
     hashtags: swap.hashtags,
-    geminiDesc: swap.visualDesc || swap.geminiDesc,
+    aiDesc: swap.visualDesc || swap.aiDesc,
     savedAt: Date.now()
   });
   saveStorage('vault');
@@ -4764,7 +4764,7 @@ function renderWebsiteAutoUpload() {
       }).join('')}
     </div>
     <div style="margin-top:12px;padding:10px;background:rgba(155,93,229,0.06);border-radius:8px;font-size:0.72rem;color:var(--purple2);">
-      🤖 When a product is added, Gemini AI automatically generates an SEO-optimized title and product description for the website.
+      🤖 When a product is added, Claude AI automatically generates an SEO-optimized title and product description for the website.
     </div>
   </div>
 
@@ -4916,7 +4916,7 @@ async function autoUploadProductToWebsite(product) {
   product.websiteVisible = true;
   product.websiteSection = section;
 
-  // Try to generate SEO title with Gemini
+  // Try to generate SEO title with Claude
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
   let seoTitle = product.name;
   let seoDesc = '';
@@ -5070,7 +5070,7 @@ function renderStyleReference() {
               <option value="stability_sd3">Stability AI SD3</option>
               <option value="replicate_sdxl">Replicate SDXL</option>
               <option value="replicate_flux">Replicate FLUX</option>
-              <option value="gemini_describe">Gemini (describe only, free)</option>
+              <option value="claude_describe">Claude AI (describe only, free)</option>
             </select>
           </div>
           <div>
@@ -5095,7 +5095,7 @@ function renderStyleReference() {
         <div style="margin-top:10px;padding:10px;background:rgba(155,93,229,0.06);border-radius:8px;font-size:0.7rem;color:var(--text3);line-height:1.7;">
           <strong style="color:var(--purple2);">How it works:</strong>
           Stability AI / Replicate use img2img — they combine your product image with the reference style.
-          Gemini (free) describes how the product would look in that style and gives a Stable Diffusion prompt.
+          Claude AI describes how the product would look in that style and gives a Stable Diffusion prompt.
         </div>
       </div>
     </div>
@@ -5285,7 +5285,7 @@ async function generateStyleRef() {
   if (!styleRefState.referenceBase64) { showToast('⚠️ Upload a reference style image first', 'warning'); return; }
   if (!styleRefState.productBase64)   { showToast('⚠️ Upload a product image first', 'warning'); return; }
 
-  const model      = document.getElementById('style-ai-model')?.value || 'gemini_describe';
+  const model      = document.getElementById('style-ai-model')?.value || 'claude_describe';
   const variations = parseInt(document.getElementById('style-variations')?.value || '4');
   const strength   = styleRefState.strength / 100;
   const extra      = document.getElementById('style-extra')?.value.trim() || '';
@@ -5302,8 +5302,8 @@ async function generateStyleRef() {
   }
 
   try {
-    if (model === 'gemini_describe') {
-      await generateStyleRefGemini(variations, strength, extra);
+    if (model === 'claude_describe') {
+      await generateStyleRefClaude(variations, strength, extra);
     } else if (model.startsWith('stability_')) {
       await generateStyleRefStability(model, variations, strength, extra);
     } else if (model.startsWith('replicate_')) {
@@ -5317,10 +5317,10 @@ async function generateStyleRef() {
   if (btn) { btn.disabled = false; btn.innerHTML = '🎨 Generate ' + variations + ' Variations'; }
 }
 
-// ── Gemini describe mode (always works, free) ────────────────────
-async function generateStyleRefGemini(variations, strength, extra) {
+// ── Claude describe mode (always works, free) ────────────────────
+async function generateStyleRefClaude(variations, strength, extra) {
   const geminiKey = APP.storage.apis?.claude || APP.storage.apis?.groq;
-  if (!geminiKey) throw new Error('Gemini API key required — add in Settings');
+  if (!geminiKey) throw new Error('Claude API key required — add in Settings');
 
   const refB64  = styleRefState.referenceBase64.split(',')[1];
   const refMime = styleRefState.referenceBase64.split(';')[0].split(':')[1] || 'image/jpeg';
@@ -5350,7 +5350,7 @@ async function generateStyleRefGemini(variations, strength, extra) {
     headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.95, maxOutputTokens: 2000 } })
   });
-  if (!res.ok) throw new Error('Gemini ' + res.status);
+  if (!res.ok) throw new Error('Claude ' + res.status);
   const data = await res.json();
   const text = data.content?.[0]?.text || (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || '';
   if (!text) throw new Error('Empty response');
@@ -5374,11 +5374,11 @@ async function generateStyleRefGemini(variations, strength, extra) {
       dallePrompt: deMatch ? deMatch[1].trim()  : '',
       description: descMatch ? descMatch[1].trim() : block.slice(0,200),
       caption: capMatch ? capMatch[1].trim() : '',
-      imageBase64: null,   // no actual image in Gemini describe mode
-      model: 'gemini_describe'
+      imageBase64: null,   // no actual image in Claude describe mode
+      model: 'claude_describe'
     };
   }));
-  logActivity('🎨 Style ref generated: ' + variations + ' variations (Gemini describe)');
+  logActivity('🎨 Style ref generated: ' + variations + ' variations (Claude describe)');
 }
 
 // ── Stability AI img2img ─────────────────────────────────────────
@@ -5712,7 +5712,7 @@ function renderSearch() {
   const history=APP.storage.searchHistory||[];
   const hasSSKey=(APP.storage.apis?.screenshot_api?.length>4||APP.storage.apis?.screenshotlayer?.length>4);
   const html=`
-  <div class="page-header"><h1>AI <span>Search</span></h1><p>Google Search + Gemini AI + Screenshotlayer</p></div>
+  <div class="page-header"><h1>AI <span>Search</span></h1><p>Serper Search + Claude AI + Screenshot API</p></div>
   <div style="position:relative;margin-bottom:16px;">
     <input type="text" id="ai-search-input" placeholder="🔍 Search products, trends, competitors..." style="font-size:1rem;padding:14px 140px 14px 20px;" onkeydown="if(event.key==='Enter')doAISearch()">
     <button class="btn btn-primary btn-sm" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);" onclick="doAISearch()">🔍 Search</button>
@@ -5785,7 +5785,7 @@ async function doAISearch() {
     }).join('');
     resultsEl.innerHTML=summaryCard+resultCards;
   } catch(e) {
-    resultsEl.innerHTML=`<div class="card"><div style="color:var(--red);">❌ ${e.message}</div><div style="font-size:0.78rem;color:var(--text2);margin-top:8px;">Add Google Search or Serper API key in Settings</div></div>`;
+    resultsEl.innerHTML=`<div class="card"><div style="color:var(--red);">❌ ${e.message}</div><div style="font-size:0.78rem;color:var(--text2);margin-top:8px;">Add Serper Search or Serper API key in Settings</div></div>`;
   }
 }
 
@@ -5840,13 +5840,13 @@ function renderSSCard(item,showActions) {
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
   h+='<div><span class="badge badge-purple">'+(typeLabels[item.type]||'🌐 Page')+'</span><span style="font-size:0.72rem;color:var(--text3);margin-left:8px;">'+item.domain+' · '+formatTime(item.capturedAt)+'</span></div>';
   h+='<div style="display:flex;gap:6px;">';
-  if(showActions) h+='<button class="btn btn-xs btn-ghost" onclick="analyzeWithGemini(\''+item.id+'\')">🤖 Analyze</button>';
+  if(showActions) h+='<button class="btn btn-xs btn-ghost" onclick="analyzeWithClaude(\''+item.id+'\')">🤖 Analyze</button>';
   h+='<button class="btn btn-xs btn-ghost" onclick="window.open(\''+item.url+'\',\'_blank\')">↗</button>';
   h+='<button class="btn btn-xs btn-ghost" onclick="deleteScreenshot(\''+item.id+'\')">🗑️</button>';
   h+='</div></div><div style="font-size:0.72rem;color:var(--text2);margin-bottom:8px;word-break:break-all;">'+item.url+'</div>';
   h+='<div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);">';
   h+='<img src="'+item.imgSrc+'" style="width:100%;display:block;max-height:400px;object-fit:contain;background:white;" onerror="this.parentElement.innerHTML=\'Screenshot unavailable\'"></div>';
-  if(item.geminiAnalysis) h+='<div style="margin-top:12px;padding:12px;background:rgba(155,93,229,0.08);border-radius:8px;"><div style="font-size:0.68rem;color:var(--purple2);font-weight:700;margin-bottom:6px;">🤖 Analysis</div><div style="font-size:0.8rem;line-height:1.7;">'+item.geminiAnalysis+'</div></div>';
+  if(item.aiAnalysis) h+='<div style="margin-top:12px;padding:12px;background:rgba(155,93,229,0.08);border-radius:8px;"><div style="font-size:0.68rem;color:var(--purple2);font-weight:700;margin-bottom:6px;">🤖 Analysis</div><div style="font-size:0.8rem;line-height:1.7;">'+item.aiAnalysis+'</div></div>';
   h+='</div>'; return h;
 }
 
@@ -5866,22 +5866,22 @@ async function screenshotQuick(type) {
 }
 
 async function analyzeProductScreenshot(item) {
-  const key=APP.storage.apis?.gemini_flash||APP.storage.apis?.gemini_pro; if(!key) return;
+  const key=APP.storage.apis?.claude||APP.storage.apis?.groq; if(!key) return;
   try {
     const prompt=`This is a screenshot of a ${item.type} page from ${item.domain}. As an Indian fashion affiliate marketer, extract: product name/price, key selling points, discount shown, affiliate opportunity score (1-10), quick recommendation for @fabricane. Be concise, 4-6 bullets.`;
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'url',url:item.imgSrc}},{type:'text',text:prompt}]}]})});
-    if(!res.ok) throw new Error('Gemini '+res.status);
+    if(!res.ok) throw new Error('Claude '+res.status);
     const data=await res.json();
     const analysis=(data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text)||'';
     const ss=(APP.storage.screenshots||[]).find(s=>s.id===item.id);
-    if(ss){ss.geminiAnalysis=analysis;saveStorage('screenshots');}
+    if(ss){ss.aiAnalysis=analysis;saveStorage('screenshots');}
     const resultEl=document.getElementById('ss-result');
-    if(resultEl) resultEl.innerHTML=renderSSCard({...item,geminiAnalysis:analysis},true);
+    if(resultEl) resultEl.innerHTML=renderSSCard({...item,aiAnalysis:analysis},true);
     showToast('🤖 Analyzed!','success');
   } catch(e) { showToast('Analysis failed','error',e.message); }
 }
 
-async function analyzeWithGemini(ssId) {
+async function analyzeWithClaude(ssId) {
   const ss=(APP.storage.screenshots||[]).find(s=>s.id===ssId); if(ss) analyzeProductScreenshot(ss);
 }
 
@@ -5949,7 +5949,7 @@ function renderInsights() {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:1.5rem;">📸</span>
       <div><div style="font-weight:700;font-size:0.95rem;">EarnKaro Screenshot Reader</div>
-      <div style="font-size:0.75rem;color:var(--text2);">Upload your EarnKaro screenshot → Gemini reads the numbers instantly</div></div>
+      <div style="font-size:0.75rem;color:var(--text2);">Upload your EarnKaro screenshot → Claude AI reads the numbers instantly</div></div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <div class="chip active" id="src-tab-ss" onclick="switchEKTab('screenshot')">📸 Screenshot</div>
@@ -5963,7 +5963,7 @@ function renderInsights() {
       </div>
       <div id="ek-reading-loader" style="display:none;text-align:center;padding:20px;"><div class="spinner" style="font-size:2rem;">⟳</div><div style="margin-top:10px;">Reading screenshot...</div></div>
       <div id="ek-extracted" style="display:none;background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:12px;">
-        <div style="font-size:0.72rem;font-weight:700;color:var(--purple2);margin-bottom:10px;">✅ Gemini Extracted</div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--purple2);margin-bottom:10px;">✅ Claude Extracted</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
           <div style="background:var(--bg2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:0.65rem;color:var(--text3);">Total Earned</div><div style="font-size:1.4rem;font-weight:700;color:var(--green);">₹<span id="ek-val-earn">0</span></div></div>
           <div style="background:var(--bg2);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:0.65rem;color:var(--text3);">Clicks</div><div style="font-size:1.4rem;font-weight:700;color:var(--cyan);"><span id="ek-val-clicks">0</span></div></div>
@@ -5973,7 +5973,7 @@ function renderInsights() {
         <div style="display:flex;gap:8px;"><button class="btn btn-success btn-full" onclick="confirmEKLog()">✅ Confirm & Save</button><button class="btn btn-ghost" onclick="resetEKReader()">🔄 New</button></div>
       </div>
       <div id="ek-no-key-warn" style="display:none;background:rgba(245,200,66,0.08);border:1px solid rgba(245,200,66,0.3);border-radius:10px;padding:14px;font-size:0.82rem;color:var(--gold);">
-        ⚠️ Gemini API key needed. Go to Settings → API Keys → Gemini Flash (free at aistudio.google.com)
+        ⚠️ Claude API key needed. Go to Settings → API Keys → Claudee.com)
         <br><button class="btn btn-ghost btn-xs" style="margin-top:8px;" onclick="showPage('settings')">→ Add Key</button>
       </div>
     </div>
@@ -6056,7 +6056,7 @@ function onEKScreenshotSelected(input) {
     const preview=document.getElementById('ek-ss-preview'); const uploadContent=document.getElementById('ek-upload-content');
     if(preview){preview.src=e.target.result;preview.style.display='block';} if(uploadContent) uploadContent.style.display='none';
     ekScreenshotB64=e.target.result.split(',')[1];
-    const apis=APP.storage.apis||{}; const geminiKey=apis.gemini_flash||apis.gemini_pro||apis.gemini_31_flash;
+    const apis=APP.storage.apis||{}; const geminiKey=apis.claude||apis.groq||apis.openai_gpt4o;
     if(!geminiKey){const w=document.getElementById('ek-no-key-warn');if(w)w.style.display='block';return;}
     const w=document.getElementById('ek-no-key-warn');if(w)w.style.display='none';
     await readEKScreenshot(geminiKey,e.target.result);
@@ -6071,7 +6071,7 @@ async function readEKScreenshot(geminiKey,dataUrl) {
   const prompt='This is an EarnKaro affiliate app screenshot. Extract these values and return ONLY valid JSON:\n{"totalEarnings":0,"clicks":0,"orders":0,"pendingEarnings":0,"confirmedEarnings":0,"todayEarnings":0,"monthEarnings":0,"notes":"what you saw"}\nUse 0 for any value not visible.';
   try {
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':geminiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mimeType,data:b64}},{type:'text',text:prompt}]}]})});
-    if(!res.ok) throw new Error('Gemini '+res.status);
+    if(!res.ok) throw new Error('Claude '+res.status);
     const data=await res.json();
     const rawText=(data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text)||'';
     const jsonMatch=rawText.match(/\{[\s\S]*\}/); if(!jsonMatch) throw new Error('Could not parse response');
@@ -6079,7 +6079,7 @@ async function readEKScreenshot(geminiKey,dataUrl) {
     const earnEl=document.getElementById('ek-val-earn'); const clicksEl=document.getElementById('ek-val-clicks'); const ordersEl=document.getElementById('ek-val-orders'); const notesEl=document.getElementById('ek-raw-read');
     if(earnEl) earnEl.textContent=parsed.totalEarnings||parsed.confirmedEarnings||parsed.todayEarnings||0;
     if(clicksEl) clicksEl.textContent=parsed.clicks||0; if(ordersEl) ordersEl.textContent=parsed.orders||0;
-    if(notesEl) notesEl.innerHTML='<strong>Gemini saw:</strong> '+(parsed.notes||'Values extracted')+(parsed.pendingEarnings?' | Pending: ₹'+parsed.pendingEarnings:'')+(parsed.monthEarnings?' | Month: ₹'+parsed.monthEarnings:'');
+    if(notesEl) notesEl.innerHTML='<strong>Claude saw:</strong> '+(parsed.notes||'Values extracted')+(parsed.pendingEarnings?' | Pending: ₹'+parsed.pendingEarnings:'')+(parsed.monthEarnings?' | Month: ₹'+parsed.monthEarnings:'');
     APP.localSession.ekExtracted=parsed; if(extracted) extracted.style.display='block';
     showToast('Screenshot read!','success','Review and confirm');
   } catch(e) {
@@ -6258,7 +6258,7 @@ const API_CATEGORIES = [
   ]},
   { name:'🔍 Search & Analytics', icon:'🔍', apis:[
     { id:'serper', name:'Serper.dev ⭐', desc:'serper.dev · Google Trends · 2500 free searches/month', tier:'Free' },
-    { id:'zenserp', name:'ZenSerp', desc:'zenserp.com · Google Search alternative', tier:'Free' },
+    { id:'zenserp', name:'ZenSerp', desc:'zenserp.com · Serper Search alternative', tier:'Free' },
     { id:'ipstack', name:'IPStack', desc:'ipstack.com · Visitor location', tier:'Free' },
   ]},
   { name:'📸 Screenshot AI', icon:'📸', apis:[
@@ -6508,7 +6508,7 @@ async function callAI(type, product) {
     if (apis.claude?.length > 4)          return 'claude';
     if (apis.openai_gpt4o?.length > 4)    return 'openai';
     if (apis.groq?.length > 4)            return 'groq';
-    if (apis.gemini_flash?.length > 4)    return 'gemini';
+    
     if (apis.deepseek?.length > 4)        return 'deepseek';
     if (apis.xai?.length > 4)             return 'xai';
     return null;
@@ -6559,12 +6559,12 @@ User: ${product.name}`
     const data = await res.json();
     return data.choices?.[0]?.message?.content || 'No response';
   }
-  if (model === 'gemini') {
+  if (model === 'gemini_never') {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': geminiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
     });
-    if (!res.ok) throw new Error('Gemini ' + res.status);
+    if (!res.ok) throw new Error('Claude ' + res.status);
     const data = await res.json();
     return (data.content?.[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text) || 'No response';
   }
@@ -6611,13 +6611,13 @@ function generateMockContent(type,product) {
 // ═══════════════════════════════════════════════════
 async function searchAPI(q) {
   const apis=APP.storage.apis||{};
-  if(apis.google_search?.length>4&&apis.google_cse_id?.length>4){
-    try{const res=await fetch(`https://www.googleapis.com/customsearch/v1?key=${apis.google_search}&cx=${apis.google_cse_id}&q=${encodeURIComponent(q)}&num=5`);const data=await res.json();if(data.items)return data.items.map(i=>({title:i.title,snippet:i.snippet,source:i.link}));}catch(e){}
+  if(apis.serper?.length>4&&apis.google_cse_id?.length>4){
+    try{const res=await fetch(`https://www.googleapis.com/customsearch/v1?key=${apis.serper}&cx=${apis.google_cse_id}&q=${encodeURIComponent(q)}&num=5`);const data=await res.json();if(data.items)return data.items.map(i=>({title:i.title,snippet:i.snippet,source:i.link}));}catch(e){}
   }
   if(apis.serper?.length>4){
     try{const res=await fetch('https://google.serper.dev/search',{method:'POST',headers:{'X-API-KEY':apis.serper,'Content-Type':'application/json'},body:JSON.stringify({q,gl:'in',num:5})});const data=await res.json();if(data.organic)return data.organic.map(r=>({title:r.title,snippet:r.snippet,source:r.link}));}catch(e){}
   }
-  return [{title:`${q} - Search Results`,snippet:`Add Google Search or Serper API key in Settings for real results.`,source:'Settings → API Keys'}];
+  return [{title:`${q} - Search Results`,snippet:`Add Serper Search or Serper API key in Settings for real results.`,source:'Settings → API Keys'}];
 }
 
 async function sendSlackAlert(msg) {
@@ -6642,7 +6642,7 @@ async function sendChat(){
     const response=await callAI('chat',{name:msg,category:'chat',systemContext:ctx});
     document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">${response}</div>`;
   }catch(e){
-    document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">I need a Gemini API key to respond! Add it in Settings → API Keys → Gemini Flash (free!) 🔑</div>`;
+    document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">I need a Claude API key to respond! Add it in Settings → API Keys → Claude 🔑</div>`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
