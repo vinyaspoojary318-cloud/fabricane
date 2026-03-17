@@ -6274,7 +6274,7 @@ function renderSettings() {
   const html=`
   <div class="page-header"><h1>API <span>Keys</span></h1><p>${connectedCount} APIs connected</p></div>
   <div class="card" style="margin-bottom:20px;background:rgba(155,93,229,0.05);border-color:rgba(155,93,229,0.2);">
-    <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.5rem;">🤖</span><div><div style="font-weight:600;margin-bottom:4px;">Smart Auto-Selection Active</div><div style="font-size:0.78rem;color:var(--text2);">Captions → Claude (primary). Images → Stability AI. Voice → ElevenLabs. Trends → Serper.</div></div></div>
+    <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.5rem;">🤖</span><div><div style="font-weight:600;margin-bottom:4px;">Smart Auto-Selection Active</div><div style="font-size:0.78rem;color:var(--text2);">Captions → Groq (free, fast) or Claude · Images → Stability AI · Voice → ElevenLabs · Trends → Serper</div></div></div>
   </div>
   <div class="progress" style="margin-bottom:8px;"><div class="progress-bar" style="width:${(connectedCount/API_CATEGORIES.reduce((s,c)=>s+c.apis.length,0))*100}%;"></div></div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
@@ -6505,12 +6505,18 @@ async function callAI(type, product) {
   const apis = APP.storage.apis || {};
 
   function getBestModel() {
-    if (apis.claude?.length > 4)          return 'claude';
-    if (apis.openai_gpt4o?.length > 4)    return 'openai';
+    // Groq first — FREE, fast, no CORS issues from browser
     if (apis.groq?.length > 4)            return 'groq';
-    
+    // OpenAI — no CORS issues
+    if (apis.openai_gpt4o?.length > 4)    return 'openai';
+    // DeepSeek — no CORS issues  
     if (apis.deepseek?.length > 4)        return 'deepseek';
+    // XAI — no CORS issues
     if (apis.xai?.length > 4)             return 'xai';
+    // Cohere — no CORS issues
+    if (apis.cohere?.length > 4)          return 'cohere';
+    // Claude — has CORS from browser, use as last resort
+    if (apis.claude?.length > 4)          return 'claude';
     return null;
   }
 
@@ -6642,7 +6648,7 @@ async function sendChat(){
     const response=await callAI('chat',{name:msg,category:'chat',systemContext:ctx});
     document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">${response}</div>`;
   }catch(e){
-    document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">I need a Claude API key to respond! Add it in Settings → API Keys → Claude 🔑</div>`;
+    document.getElementById('chat-typing').innerHTML=`<div class="chat-bubble">⚠️ Add a <strong>Groq API key</strong> in Settings → API Keys → Groq (it\'s FREE!) to use the chatbot. Get it at console.groq.com 🔑</div>`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -6677,7 +6683,7 @@ function updateBadges(){
   const prodCount=(APP.storage.products||[]).length;
   const apiCount=Object.values(APP.storage.apis||{}).filter(v=>v&&v.length>4).length;
   const el1=document.getElementById('badge-products'); const el2=document.getElementById('badge-apis');
-  if(el1) el1.textContent=prodCount; if(el2) el2.textContent=`${apiCount}/43`;
+  if(el1) el1.textContent=prodCount; const totalApis2 = typeof API_CATEGORIES !== 'undefined' ? API_CATEGORIES.reduce((s,c)=>s+c.apis.length,0) : 20; if(el2) el2.textContent=`${apiCount}/${totalApis2}`;
 }
 
 function formatTime(ts){
