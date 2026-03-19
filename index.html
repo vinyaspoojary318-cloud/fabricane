@@ -592,19 +592,23 @@ document.getElementById('manifest-link').href = URL.createObjectURL(blob);
         <button class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">⚡</span>Dashboard</button>
         <button class="nav-item" onclick="showPage('products')"><span class="nav-icon">🛍️</span>Products<span class="nav-badge" id="badge-products">0</span></button>
         <button class="nav-item" onclick="showPage('content')"><span class="nav-icon">✨</span>Content Generator</button>
-        <button class="nav-item" onclick="showPage('pipeline')"><span class="nav-icon">🚀</span>Automation</button>
+        <button class="nav-item" onclick="showPage('vault')"><span class="nav-icon">🗂️</span>Content Vault</button>
       </div>
       <div class="nav-section">
-        <div class="nav-section-label">Create</div>
-        <button class="nav-item" onclick="showPage('influencer')"><span class="nav-icon">👑</span>Influencer</button>
-        <button class="nav-item" onclick="showPage('vault')"><span class="nav-icon">🗂️</span>Content Vault</button>
-        <button class="nav-item" onclick="showPage('search')"><span class="nav-icon">🔍</span>AI Search</button>
-        <button class="nav-item" onclick="showPage('styleref')"><span class="nav-icon">🎨</span>Style Reference</button>
+        <div class="nav-section-label">Creative Studio</div>
+        <button class="nav-item" onclick="showPage('studio')"><span class="nav-icon">🎨</span>Style, AI & Influencer</button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-label">Automation</div>
+        <button class="nav-item" onclick="showPage('pipeline')"><span class="nav-icon">🚀</span>Automation Hub</button>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Analytics</div>
         <button class="nav-item" onclick="showPage('insights')"><span class="nav-icon">📊</span>Insights</button>
-        <button class="nav-item" onclick="showPage('website')"><span class="nav-icon">🌐</span>Website</button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-label">Customer Website</div>
+        <button class="nav-item" onclick="showPage('website')"><span class="nav-icon">🌐</span>Website Manager</button>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Settings</div>
@@ -862,7 +866,7 @@ function getDefaultStorage() {
     influencerMale:   { name: 'Male Influencer',   style: "Men's Casual",   gender: 'male',   poses: {} },
     refLibrary: [],
     linkSwitches: { earnkaro: true, website: true, combined: true },
-    websiteConfig: { title: 'Fabricane — Fashion & Beauty', tagline: 'Shop curated Indian fashion & beauty', igHandle: '@_fashionwithfabricane_' },
+    websiteConfig: { title: 'Fabricane — Fashion & Beauty', tagline: 'Shop curated Indian fashion & beauty', igHandle: '@_fashionwithfabricane_', paused: false, pausedAt: null },
     websiteStats: { visitors: 0, pageViews: 0, clicks: 0, revenue: 0 },
     autoUpload: { enabled: false, rules: {} },
     autoUploadHistory: [],
@@ -1059,6 +1063,7 @@ function showPage(page) {
     products: renderProducts,
     content: renderContentGenerator,
     pipeline: renderPipeline,
+    studio: renderStudio,
     influencer: renderInfluencer,
     vault: renderVault,
     search: renderSearch,
@@ -1843,7 +1848,13 @@ function saveProduct() {
   APP.storage.products = APP.storage.products || [];
   APP.storage.products.unshift(prod);
   saveStorage('products');
-  autoUploadProductToWebsite(prod).catch(() => {});  // async, non-blocking
+  // Only auto-upload if website is NOT paused
+  const isPaused = APP.storage.websiteConfig?.paused === true;
+  if (!isPaused) {
+    autoUploadProductToWebsite(prod).catch(() => {});
+  } else {
+    showToast('⏸ Product saved — not published', 'warning', 'Website is paused. Resume to publish new listings.');
+  }
   closeModal('add-product-modal');
   logActivity(`➕ Product added: ${name}`);
   updateBadges();
@@ -4425,38 +4436,188 @@ function setActiveInfluencer(id) {
 // ═══════════════════════════════════════════════════
 // WEBSITE MANAGER — fabricane.vercel.app
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// CREATIVE STUDIO — combines Style Reference, AI Search, Influencer
+// ═══════════════════════════════════════════════════
+let studioTab = 'search';
+
+function renderStudio() {
+  const tabs = [
+    { id:'search',    label:'🔍 AI Search'      },
+    { id:'styleref',  label:'🎨 Style Reference' },
+    { id:'influencer',label:'👑 Influencer'       },
+  ];
+  document.getElementById('main-content').innerHTML = `
+  <div class="page-header">
+    <h1>Creative <span>Studio</span></h1>
+    <p>AI Search · Style Reference · Influencer — all in one place</p>
+  </div>
+  <div class="tabs" id="studio-tabs" style="margin-bottom:16px;">
+    ${tabs.map(t => `<button class="tab ${t.id===studioTab?'active':''}" onclick="switchStudioTab('${t.id}',this)">${t.label}</button>`).join('')}
+  </div>
+  <div id="studio-tab-content"></div>`;
+  renderStudioTabContent(studioTab);
+}
+
+function switchStudioTab(tab, btn) {
+  studioTab = tab;
+  document.querySelectorAll('#studio-tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderStudioTabContent(tab);
+}
+
+function renderStudioTabContent(tab) {
+  const el = document.getElementById('studio-tab-content');
+  if (!el) return;
+  // Temporarily use a hidden div to capture render output
+  const dummy = document.createElement('div');
+  dummy.style.display = 'none';
+  document.body.appendChild(dummy);
+  const mainContent = document.getElementById('main-content');
+
+  if (tab === 'search') {
+    const searchContent = buildSearchHTML();
+    el.innerHTML = searchContent;
+    initSearchHandlers();
+  } else if (tab === 'styleref') {
+    const styleContent = buildStyleRefHTML();
+    el.innerHTML = styleContent;
+  } else if (tab === 'influencer') {
+    const infContent = buildInfluencerHTML();
+    el.innerHTML = infContent;
+  }
+  document.body.removeChild(dummy);
+}
+
+function buildSearchHTML() {
+  const history = APP.storage.searchHistory || [];
+  const hasSSKey = (APP.storage.apis?.screenshot_api?.length > 4 || APP.storage.apis?.screenshotlayer?.length > 4);
+  return `
+  <div style="position:relative;margin-bottom:16px;">
+    <input type="text" id="ai-search-input" placeholder="🔍 Search products, trends, competitors..." style="font-size:1rem;padding:14px 140px 14px 20px;" onkeydown="if(event.key==='Enter')doAISearch()">
+    <button class="btn btn-primary btn-sm" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);" onclick="doAISearch()">🔍 Search</button>
+  </div>
+  <div class="card" style="margin-bottom:16px;background:rgba(155,93,229,0.04);border-color:rgba(155,93,229,0.2);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <span style="font-size:1.2rem;">📸</span>
+      <div style="flex:1;"><div style="font-weight:700;font-size:0.85rem;">Screenshot Any Page</div>
+      <div style="font-size:0.72rem;color:var(--text2);">Auto-capture product pages, competitor profiles, Pinterest boards</div></div>
+      ${!hasSSKey ? '<button class="btn btn-ghost btn-xs" onclick="showPage(\'settings\')">Add Key →</button>' : '<span class="badge badge-green">Ready</span>'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+      <input type="url" id="ss-url-input" placeholder="https://www.myntra.com/..." style="font-size:0.85rem;">
+      <button class="btn btn-primary" onclick="screenshotURL(document.getElementById('ss-url-input').value)">📸 Capture</button>
+    </div>
+  </div>
+  <div id="search-results-area">
+    ${history.length ? `<div class="card"><div class="section-title">🕒 Recent Searches</div><div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">${history.slice(0,5).map(h=>`<div style="padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:0.8rem;cursor:pointer;" onclick="document.getElementById('ai-search-input').value='${h}';doAISearch()">${h}</div>`).join('')}</div></div>` : '<div style="color:var(--text3);font-size:0.82rem;text-align:center;padding:30px;">Search for products, trends, competitors or fashion inspiration...</div>'}
+  </div>`;
+}
+
+function buildStyleRefHTML() {
+  const refLibrary = APP.storage.refLibrary || [];
+  return `
+  <div class="grid-2" style="gap:16px;margin-bottom:16px;">
+    <div class="card">
+      <div class="section-title">📷 Reference Style Image</div>
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:10px;">Upload a style/mood reference (outfit, aesthetic, color palette)</div>
+      <div id="ref-drop" style="border:2px dashed var(--border2);border-radius:10px;padding:28px;text-align:center;cursor:pointer;" onclick="document.getElementById('ref-upload').click()">
+        <div style="font-size:2rem;margin-bottom:8px;">🖼️</div>
+        <div style="font-size:0.82rem;color:var(--text2);">Click to upload reference image</div>
+      </div>
+      <input type="file" id="ref-upload" accept="image/*" style="display:none;" onchange="handleRefUpload(this)">
+    </div>
+    <div class="card">
+      <div class="section-title">👗 Product Image</div>
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:10px;">Upload the product photo to restyle</div>
+      <div id="prod-drop" style="border:2px dashed var(--border2);border-radius:10px;padding:28px;text-align:center;cursor:pointer;" onclick="document.getElementById('prod-upload').click()">
+        <div style="font-size:2rem;margin-bottom:8px;">👗</div>
+        <div style="font-size:0.82rem;color:var(--text2);">Click to upload product image</div>
+      </div>
+      <input type="file" id="prod-upload" accept="image/*" style="display:none;" onchange="handleProductUpload(this)">
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="section-title">⚙️ Style Strength</div>
+    <input type="range" id="style-strength" min="10" max="100" value="${styleRefState?.strength||70}" style="width:100%;margin:10px 0;" oninput="document.getElementById('strength-val').textContent=this.value+'%'">
+    <div style="font-size:0.8rem;color:var(--text2);">Strength: <span id="strength-val">${styleRefState?.strength||70}%</span></div>
+  </div>
+  <button class="btn btn-primary btn-full" onclick="generateStyleRef()" style="margin-bottom:16px;">🎨 Generate Style Reference</button>
+  <div id="style-ref-results"></div>
+  ${refLibrary.length ? `<div class="card"><div class="section-title">📚 Reference Library (${refLibrary.length})</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:10px;">${refLibrary.slice(0,12).map(r=>`<div style="aspect-ratio:1;background:var(--bg3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:var(--text3);text-align:center;padding:4px;">${r.label||'Ref'}</div>`).join('')}</div></div>` : ''}`;
+}
+
+function buildInfluencerHTML() {
+  const female = APP.storage.influencers?.female || { name:'', niche:'', followers:'', engagement:'', handle:'', bio:'', contentStyle:'', collab:'' };
+  const male = APP.storage.influencers?.male || { name:'', niche:'', followers:'', engagement:'', handle:'', bio:'', contentStyle:'', collab:'' };
+  return `
+  <div class="grid-2" style="gap:16px;">
+    ${buildInfluencerCard('female', female, '👩')}
+    ${buildInfluencerCard('male', male, '👨')}
+  </div>`;
+}
+
+function buildInfluencerCard(gender, inf, icon) {
+  return `
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-size:1.3rem;">${icon}</div>
+      <div><div style="font-weight:700;">${inf.name||'Add '+gender+' influencer'}</div><div style="font-size:0.72rem;color:var(--text3);">${inf.handle||'@handle'} · ${inf.followers||'0'} followers</div></div>
+      <button class="btn btn-ghost btn-xs" style="margin-left:auto;" onclick="editInfluencer('${gender}')">✏️ Edit</button>
+    </div>
+    ${inf.name ? `
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">
+      <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-radius:6px;"><span style="color:var(--text3);">Niche</span><span>${inf.niche||'—'}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-radius:6px;"><span style="color:var(--text3);">Engagement</span><span style="color:var(--green);">${inf.engagement||'—'}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-radius:6px;"><span style="color:var(--text3);">Style</span><span>${inf.contentStyle||'—'}</span></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:6px;">
+      <button class="btn btn-primary btn-sm" onclick="showPage('content')">✨ Generate Content</button>
+      <button class="btn btn-ghost btn-sm" onclick="openDressSwap(null,'${gender}')">👗 Dress Swap</button>
+    </div>` : `<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:20px;">No influencer profile yet.<br>Click Edit to add details.</div>`}
+  </div>`;
+}
+
+function initSearchHandlers() {
+  // search handlers are already global — no extra init needed
+}
+
 let websiteTab = 'overview';
 
 function renderWebsiteManager() {
   const tabs = [
-    { id:'overview',  label:'📊 Overview'   },
-    { id:'products',  label:'🛍️ Products'   },
-    { id:'wsettings', label:'⚙️ Settings'   },
-    { id:'links',     label:'🔗 Links'      },
-    { id:'analytics', label:'📈 Analytics'  },
-    { id:'autoupload',label:'⚡ Auto Upload' },
+    { id:'overview',   label:'📊 Overview'    },
+    { id:'pause',      label:'⏸ Pause Control'},
+    { id:'products',   label:'🛍️ Products'    },
+    { id:'analytics',  label:'📈 Analytics'   },
+    { id:'wsettings',  label:'⚙️ Settings'    },
+    { id:'links',      label:'🔗 Links'       },
+    { id:'autoupload', label:'⚡ Auto Upload'  },
   ];
   const websiteUrl = APP.storage.settings?.websiteUrl || 'fabricane.vercel.app';
+  const isPaused = APP.storage.websiteConfig?.paused === true;
 
   const html = `
   <div class="page-header">
-    <h1>Website <span>Manager</span></h1>
-    <p>Manage fabricane.vercel.app — both fashion & beauty in one place</p>
+    <h1>Customer <span>Website</span></h1>
+    <p>Manage fabricane.vercel.app — products, analytics & pause control</p>
   </div>
 
   <!-- Status bar -->
-  <div class="card" style="margin-bottom:16px;background:rgba(0,229,160,0.05);border-color:rgba(0,229,160,0.2);padding:12px 16px;">
+  <div class="card" style="margin-bottom:16px;background:${isPaused?'rgba(255,71,87,0.06)':'rgba(0,229,160,0.05)'};border-color:${isPaused?'rgba(255,71,87,0.3)':'rgba(0,229,160,0.2)'};padding:12px 16px;">
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <div class="api-dot connected"></div>
+        <div class="api-dot ${isPaused?'disconnected':'connected'}"></div>
         <span style="font-size:0.82rem;font-weight:600;">${websiteUrl}</span>
+        <span style="font-size:0.72rem;padding:2px 8px;border-radius:10px;font-weight:700;background:${isPaused?'rgba(255,71,87,0.15)':'rgba(0,229,160,0.15)'};color:${isPaused?'var(--red)':'var(--green)'};">${isPaused?'⏸ PAUSED':'▶ LIVE'}</span>
       </div>
       <a href="https://${websiteUrl}" target="_blank" style="font-size:0.72rem;color:var(--cyan);text-decoration:none;">↗ Open website</a>
       <div style="margin-left:auto;display:flex;gap:6px;">
-        <button class="btn btn-primary btn-xs" onclick="deployWebsite()">🚀 Deploy Changes</button>
+        <button class="btn ${isPaused?'btn-primary':'btn-danger'} btn-xs" onclick="toggleWebsitePause()">${isPaused?'▶ Resume Website':'⏸ Pause Website'}</button>
         <button class="btn btn-ghost btn-xs" onclick="previewWebsite()">👁 Preview</button>
       </div>
     </div>
+    ${isPaused ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(255,71,87,0.08);border-radius:8px;font-size:0.75rem;color:var(--red);font-weight:600;">⚠️ Website is PAUSED — new products will NOT appear on customer site until resumed. Existing products remain visible.</div>` : ''}
   </div>
 
   <div class="tabs" id="website-tabs" style="margin-bottom:16px;">
@@ -4480,6 +4641,7 @@ function switchWebsiteTab(tab, btn) {
 function renderWebsiteTab(tab) {
   switch(tab) {
     case 'overview':   return renderWebsiteOverview();
+    case 'pause':      return renderWebsitePauseControl();
     case 'products':   return renderWebsiteProducts();
     case 'wsettings':  return renderWebsiteSettings();
     case 'links':      return renderWebsiteLinks();
@@ -4487,6 +4649,101 @@ function renderWebsiteTab(tab) {
     case 'autoupload': return renderWebsiteAutoUpload();
     default: return '<div>Tab not found</div>';
   }
+}
+
+// ── Tab: Pause Control ───────────────────────────────────────────
+function renderWebsitePauseControl() {
+  const isPaused = APP.storage.websiteConfig?.paused === true;
+  const pausedAt = APP.storage.websiteConfig?.pausedAt;
+  const pausedSince = pausedAt ? formatTime(pausedAt) : null;
+  const products = APP.storage.products || [];
+  const totalProducts = products.filter(p => p.websiteVisible !== false).length;
+  const pendingProducts = products.filter(p => p.websiteVisible !== false && p.addedAt > (pausedAt||0)).length;
+
+  return `
+  <!-- BIG PAUSE TOGGLE -->
+  <div class="card" style="margin-bottom:20px;text-align:center;padding:40px 24px;background:${isPaused?'rgba(255,71,87,0.06)':'rgba(0,229,160,0.04)'};border-color:${isPaused?'rgba(255,71,87,0.3)':'rgba(0,229,160,0.2)'};">
+    <div style="font-size:3rem;margin-bottom:16px;">${isPaused?'⏸':'▶'}</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;margin-bottom:8px;color:${isPaused?'var(--red)':'var(--green)'};">
+      Customer Website is ${isPaused?'PAUSED':'LIVE'}
+    </div>
+    <div style="font-size:0.85rem;color:var(--text2);margin-bottom:28px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.7;">
+      ${isPaused
+        ? `New products you add will <strong style="color:var(--red);">NOT appear</strong> on the customer website until you resume. All existing ${totalProducts} products remain visible.${pausedSince ? `<br><span style="font-size:0.75rem;color:var(--text3);">Paused ${pausedSince}</span>` : ''}`
+        : `All new products you add will <strong style="color:var(--green);">automatically appear</strong> on the customer website in real-time. Currently showing <strong>${totalProducts}</strong> products.`
+      }
+    </div>
+    <button class="btn ${isPaused?'btn-primary':'btn-danger'}" style="padding:16px 40px;font-size:1rem;" onclick="toggleWebsitePause()">
+      ${isPaused?'▶ Resume Website — Go Live':'⏸ Pause Website — Stop New Listings'}
+    </button>
+    ${isPaused && pendingProducts > 0 ? `<div style="margin-top:16px;font-size:0.75rem;color:var(--gold);">⚠️ ${pendingProducts} products added while paused are waiting — they'll appear when you resume.</div>` : ''}
+  </div>
+
+  <!-- WHAT PAUSE MEANS -->
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="card" style="background:rgba(0,229,160,0.03);border-color:rgba(0,229,160,0.15);">
+      <div style="font-weight:700;font-size:0.9rem;margin-bottom:12px;color:var(--green);">▶ When LIVE</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;color:var(--text2);">
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> New products appear instantly on customer site</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> All existing products visible</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> Real-time sync with Firebase</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> Customers can browse & click affiliate links</div>
+      </div>
+    </div>
+    <div class="card" style="background:rgba(255,71,87,0.03);border-color:rgba(255,71,87,0.15);">
+      <div style="font-weight:700;font-size:0.9rem;margin-bottom:12px;color:var(--red);">⏸ When PAUSED</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;color:var(--text2);">
+        <div style="display:flex;gap:8px;"><span style="color:var(--red);">✗</span> NEW products won't appear on customer site</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> Existing products still visible</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> Website stays running normally</div>
+        <div style="display:flex;gap:8px;"><span style="color:var(--green);">✓</span> You can still add products to your hub</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT VISIBILITY QUICK STATS -->
+  <div class="card">
+    <div class="section-title">📦 Product Status</div>
+    <div class="grid-4" style="margin-top:14px;">
+      <div style="text-align:center;padding:14px;background:var(--bg3);border-radius:10px;">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--text);">${products.length}</div>
+        <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;">Total Products</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:var(--bg3);border-radius:10px;">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--green);">${totalProducts}</div>
+        <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;">Visible on Site</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:var(--bg3);border-radius:10px;">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--red);">${products.filter(p=>p.websiteVisible===false).length}</div>
+        <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;">Hidden</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:var(--bg3);border-radius:10px;">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--gold);">${pendingProducts}</div>
+        <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;">Pending (Paused)</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="switchWebsiteTab('products',null)">🛍️ Manage Product Visibility</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.open('https://${APP.storage.settings?.websiteUrl||'fabricane.vercel.app'}','_blank')">↗ View Live Site</button>
+    </div>
+  </div>`;
+}
+
+function toggleWebsitePause() {
+  APP.storage.websiteConfig = APP.storage.websiteConfig || {};
+  const isPaused = APP.storage.websiteConfig.paused === true;
+  APP.storage.websiteConfig.paused = !isPaused;
+  if (!isPaused) {
+    APP.storage.websiteConfig.pausedAt = Date.now();
+    showToast('⏸ Website paused', 'warning', 'New products will not appear on customer site');
+    logActivity('⏸ Customer website paused — new listings stopped');
+  } else {
+    APP.storage.websiteConfig.pausedAt = null;
+    showToast('▶ Website resumed!', 'success', 'New products will now appear on customer site');
+    logActivity('▶ Customer website resumed — new listings active');
+  }
+  saveStorage('websiteConfig');
+  showPage('website');
 }
 
 // ── Tab 1: Overview ──────────────────────────────────────────────
