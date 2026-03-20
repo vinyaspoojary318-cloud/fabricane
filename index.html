@@ -411,6 +411,7 @@ tr:hover td { background: var(--bg2); }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { animation: spin 0.8s linear infinite; display: inline-block; }
 
@@ -4702,6 +4703,7 @@ function renderWebsiteManager() {
         <button class="wmt ${wm_editor_section==='hero'?'active':''}" onclick="wmSwitch('hero')">🏠 Hero</button>
         <button class="wmt ${wm_editor_section==='site'?'active':''}" onclick="wmSwitch('site')">⚙️ Site</button>
         <button class="wmt ${wm_editor_section==='analytics'?'active':''}" onclick="wmSwitch('analytics')">📈 Analytics</button>
+        <button class="wmt ${wm_editor_section==='ai'?'active':''}" onclick="wmSwitch('ai')" style="color:var(--purple);">✨ AI Studio</button>
       </div>
       <div id="wm-editor">
         ${renderWmEditor(wm_editor_section)}
@@ -4742,6 +4744,7 @@ function renderWmEditor(section) {
     case 'hero':      return renderWmHero();
     case 'site':      return renderWmSite();
     case 'analytics': return renderWmAnalytics();
+    case 'ai':        return renderWmAI();
     default: return renderWmProducts();
   }
 }
@@ -4756,65 +4759,106 @@ const WM_PLATFORMS = {
   Ajio:           { color:'#E8001C', text:'#fff',    emoji:'🔴', cats:['Mens','Womens','Kids','Footwear','Activewear','Luxe','New Arrivals','Western','Ethnic','Accessories'] },
   Nykaa:          { color:'#FC2779', text:'#fff',    emoji:'💗', cats:['Skincare','Makeup','Haircare','Fragrance','Wellness','Bath & Body','Mens Grooming','Nail Care','Tools','Gifts'] },
   'The Man Company':{ color:'#C9A84C', text:'#fff',  emoji:'♟', cats:['Beard Care','Face Care','Hair Care','Body Care','Fragrance','Grooming Kits','Gift Sets','Accessories','Wellness','Shaving'] },
-  Shopsy:           { color:'#F8D000', text:'#1a1a00', emoji:'☀️', cats:['Fashion','Electronics','Home & Kitchen','Beauty','Toys','Sports','Bags','Footwear','Jewellery','Trending Deals'] },
 };
+
+function buildWmProdCard(p, color) {
+  const isLive = p.websiteVisible!==false && p.active!==false;
+  const img = p.imgUrl&&p.imgUrl.length>5 ? '<img src="'+p.imgUrl+'" alt="" style="width:100%;height:100%;object-fit:cover;">' : getCatEmoji(p.category);
+  const badge = p.badge ? '<span style="position:absolute;top:5px;left:5px;background:'+getBadgeBg(p.badge)+';color:#fff;font-size:0.58rem;font-weight:700;padding:2px 5px;border-radius:8px;">'+p.badge+'</span>' : '';
+  const disc = p.discount ? '<span style="font-size:.6rem;color:var(--green);">-'+p.discount+'%</span>' : '';
+  return '<div class="wm-prod-card">'
+    + '<div class="wm-prod-img" style="border-top:2px solid '+color+';">'
+    +   img
+    +   '<span style="position:absolute;top:5px;right:5px;background:'+(isLive?'rgba(0,229,160,.9)':'rgba(100,100,120,.8)')+';color:#fff;font-size:0.58rem;font-weight:700;padding:2px 5px;border-radius:8px;">'+(isLive?'LIVE':'HIDDEN')+'</span>'
+    +   badge
+    + '</div>'
+    + '<div class="wm-prod-body">'
+    +   '<div class="wm-prod-name" title="'+p.name+'">'+p.name+'</div>'
+    +   '<div class="wm-prod-meta">'+(p.category||'—')+'</div>'
+    +   '<div class="wm-prod-price">'+p.price+' '+disc+'</div>'
+    +   '<div class="wm-prod-actions">'
+    +     '<label class="toggle" style="transform:scale(0.75);transform-origin:left;">'
+    +       '<input type="checkbox" '+(isLive?'checked':'')+' onchange="wmToggleProduct(\''+p.id+'\',this.checked)">'
+    +       '<span class="toggle-slider"></span>'
+    +     '</label>'
+    +     '<button class="btn btn-xs btn-ghost" onclick="wmEditProduct(\''+p.id+'\',event)" title="Edit">✏️</button>'
+    +     '<button class="btn btn-xs btn-danger" onclick="wmDeleteProduct(\''+p.id+'\')" title="Delete">🗑️</button>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function buildAllPlatformsHTML(products, activePlatform) {
+  return Object.entries(WM_PLATFORMS).map(function(entry) {
+    var name = entry[0], info = entry[1];
+    var platProds = products.filter(function(p){ return (p.platform||'')===name; });
+    var liveProds = platProds.filter(function(p){ return p.websiteVisible!==false&&p.active!==false; }).length;
+    var isActive = name===activePlatform;
+
+    var headerHtml = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 14px;background:'+info.color+'18;border-left:3px solid '+info.color+';border-radius:0 8px 8px 0;">'
+      + '<span style="font-size:1.1rem;">'+info.emoji+'</span>'
+      + '<div style="flex:1;">'
+      +   '<span style="font-size:0.85rem;font-weight:700;color:var(--text);">'+name+'</span>'
+      +   '<span style="font-size:0.72rem;color:var(--text3);margin-left:8px;">'+platProds.length+' products</span>'
+      +   (liveProds>0 ? '<span style="font-size:0.68rem;color:var(--green);margin-left:6px;">· '+liveProds+' live</span>' : '')
+      + '</div>'
+      + '<button onclick="window._wmAddPlatform=\''+name+'\';wmSwitch(\'products\')"'
+      +   ' style="padding:5px 12px;border-radius:20px;border:1.5px solid '+info.color+';background:'+(isActive?info.color:'transparent')+';'
+      +   'color:'+(isActive?(info.text||'#fff'):'var(--text2)')+';font-family:\'DM Sans\',sans-serif;font-size:0.72rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;">'
+      +   (isActive?'✅ Adding here':'+ Add Product')
+      + '</button>'
+      + '</div>';
+
+    var prodsHtml;
+    if(platProds.length===0){
+      prodsHtml = '<div style="text-align:center;padding:18px;color:var(--text3);border:1.5px dashed var(--border);border-radius:10px;font-size:0.78rem;">No '+name+' products yet — click <strong>+ Add Product</strong> above</div>';
+    } else {
+      prodsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;">'
+        + platProds.map(function(p){ return buildWmProdCard(p, info.color); }).join('')
+        + '</div>';
+    }
+
+    return '<div style="margin-bottom:20px;">'+headerHtml+prodsHtml+'</div>';
+  }).join('');
+}
 
 function renderWmProducts() {
   const products = APP.storage.products || [];
   const activePlatform = window._wmAddPlatform || 'Flipkart';
   const platInfo = WM_PLATFORMS[activePlatform] || WM_PLATFORMS.Flipkart;
-  const platProds = products.filter(p => (p.platform||'') === activePlatform);
   const liveCount = products.filter(p=>p.websiteVisible!==false&&p.active!==false).length;
+
+  // Build all-platforms product view — kept flat to avoid nested template literal errors
+  const allPlatformsHTML = buildAllPlatformsHTML(products, activePlatform);
 
   return `
   <!-- ── Header ── -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
     <div>
       <div style="font-size:1.1rem;font-weight:700;">🛍️ Products</div>
       <div style="font-size:0.75rem;color:var(--text3);margin-top:2px;">${products.length} total · <span style="color:var(--green);">${liveCount} live on website</span></div>
     </div>
   </div>
 
-  <!-- ── PLATFORM TABS ── -->
-  <div class="ap-plat-tabs">
-    ${Object.entries(WM_PLATFORMS).map(([name,info])=>{
-      const count = products.filter(p=>p.platform===name).length;
-      return `<button class="ap-plat-tab ${name===activePlatform?'active':''}"
-        style="${name===activePlatform?`background:${info.color};`:''}"
-        onclick="window._wmAddPlatform='${name}';wmSwitch('products')">
-        ${info.emoji} ${name} ${count>0?`<span style="opacity:.7;font-size:.65rem;margin-left:3px;">(${count})</span>`:''}
-      </button>`;
-    }).join('')}
-  </div>
-
-  <!-- ── ADD PRODUCT FORM ── -->
-  <div style="background:var(--bg2);border:1.5px solid ${platInfo.color}44;border-radius:14px;padding:20px;margin-bottom:24px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <div style="width:36px;height:36px;border-radius:10px;background:${platInfo.color};display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">${platInfo.emoji}</div>
+  <!-- ── ADD PRODUCT FORM (active platform) ── -->
+  <div style="background:var(--bg2);border:1.5px solid ${platInfo.color};border-radius:14px;padding:18px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="width:34px;height:34px;border-radius:10px;background:${platInfo.color};display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">${platInfo.emoji}</div>
       <div>
-        <div style="font-size:0.9rem;font-weight:700;">Add ${activePlatform} Product</div>
-        <div style="font-size:0.7rem;color:var(--text3);">Fill in the details below and save to publish</div>
+        <div style="font-size:0.88rem;font-weight:700;">Add ${activePlatform} Product</div>
+        <div style="font-size:0.68rem;color:var(--text3);">Click <strong>+ Add Product</strong> next to any platform below to switch</div>
       </div>
     </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="wm-field" style="grid-column:1/-1"><label>Product Name *</label>
         <input type="text" id="wm-p-name" placeholder="e.g. Lakme 9to5 Face Serum 50ml">
       </div>
-      <div class="wm-field"><label>Price *</label>
-        <input type="text" id="wm-p-price" placeholder="₹499">
-      </div>
-      <div class="wm-field"><label>Original / MRP</label>
-        <input type="text" id="wm-p-orig" placeholder="₹799">
-      </div>
+      <div class="wm-field"><label>Price *</label><input type="text" id="wm-p-price" placeholder="₹499"></div>
+      <div class="wm-field"><label>Original / MRP</label><input type="text" id="wm-p-orig" placeholder="₹799"></div>
       <div class="wm-field"><label>Category *</label>
-        <select id="wm-p-cat">
-          ${platInfo.cats.map(c=>`<option value="${c}">${c}</option>`).join('')}
-        </select>
+        <select id="wm-p-cat">${platInfo.cats.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       </div>
-      <div class="wm-field"><label>Discount %</label>
-        <input type="number" id="wm-p-disc" placeholder="30" min="0" max="99">
-      </div>
+      <div class="wm-field"><label>Discount %</label><input type="number" id="wm-p-disc" placeholder="30" min="0" max="99"></div>
       <div class="wm-field"><label>Badge</label>
         <select id="wm-p-badge">
           <option value="">— None —</option>
@@ -4823,59 +4867,29 @@ function renderWmProducts() {
         </select>
       </div>
       <div class="wm-field" style="grid-column:1/-1"><label>Affiliate Link *</label>
-        <input type="url" id="wm-p-link" placeholder="https://ekaro.in/... or paste product link">
+        <input type="url" id="wm-p-link" placeholder="https://ekaro.in/...">
       </div>
       <div class="wm-field" style="grid-column:1/-1"><label>Product Image URL</label>
-        <input type="url" id="wm-p-img" placeholder="Paste image URL from the product page">
+        <input type="url" id="wm-p-img" placeholder="Paste image URL from product page">
       </div>
     </div>
-
-    <div style="display:flex;gap:10px;margin-top:4px;">
-      <button class="btn btn-primary" style="flex:1;padding:11px;font-size:0.9rem;background:${platInfo.color};border-color:${platInfo.color};" onclick="wmSaveProduct()">
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <button class="btn btn-primary" style="flex:2;padding:11px;font-size:0.88rem;background:${platInfo.color};border-color:${platInfo.color};" onclick="wmSaveProduct()">
         ✅ Save & Publish to Website
       </button>
-      <button class="btn btn-ghost" onclick="wmClearForm()">Clear</button>
+      <button class="btn btn-ghost" style="flex:1;padding:11px;font-size:0.85rem;border:1.5px solid var(--border2);" onclick="wmSaveProductOnly()" title="Save to hub only — won't show on customer website">
+        💾 Save Only
+      </button>
+      <button class="btn btn-ghost" onclick="wmClearForm()" style="padding:11px 14px;">✕</button>
+    </div>
+    <div style="font-size:0.65rem;color:var(--text3);margin-top:6px;text-align:center;">
+      💾 Save Only = stored in hub, hidden from website &nbsp;·&nbsp; ✅ Publish = visible to customers
     </div>
   </div>
 
-  <!-- ── EXISTING PRODUCTS FOR THIS PLATFORM ── -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-    <div style="font-size:0.85rem;font-weight:700;">${platInfo.emoji} ${activePlatform} Products <span style="color:var(--text3);font-weight:400;">(${platProds.length})</span></div>
-    ${platProds.length>0?`<span style="font-size:0.7rem;color:var(--green);">${platProds.filter(p=>p.websiteVisible!==false&&p.active!==false).length} live</span>`:''}
-  </div>
-
-  ${platProds.length===0
-    ? `<div style="text-align:center;padding:32px 0;color:var(--text3);border:1.5px dashed var(--border);border-radius:12px;">
-        <div style="font-size:2rem;margin-bottom:8px;">${platInfo.emoji}</div>
-        <div style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">No ${activePlatform} products yet</div>
-        <div style="font-size:0.75rem;">Fill in the form above to add your first one!</div>
-       </div>`
-    : `<div class="wm-prod-grid">
-        ${platProds.map(p => {
-          const isLive = p.websiteVisible!==false && p.active!==false;
-          return `<div class="wm-prod-card">
-            <div class="wm-prod-img" style="border-left:3px solid ${isLive?'var(--green)':'var(--border)'};">
-              ${p.imgUrl&&p.imgUrl.length>5?`<img src="${p.imgUrl}" alt="">`:getCatEmoji(p.category)}
-              <span style="position:absolute;top:6px;right:6px;background:${isLive?'rgba(0,229,160,.9)':'rgba(100,100,120,.8)'};color:#fff;font-size:0.6rem;font-weight:700;padding:2px 6px;border-radius:10px;">${isLive?'LIVE':'HIDDEN'}</span>
-              ${p.badge?`<span style="position:absolute;top:6px;left:6px;background:${getBadgeBg(p.badge)};color:#fff;font-size:0.6rem;font-weight:700;padding:2px 6px;border-radius:10px;">${p.badge}</span>`:''}
-            </div>
-            <div class="wm-prod-body">
-              <div class="wm-prod-name" title="${p.name}">${p.name}</div>
-              <div class="wm-prod-meta">${p.category||'—'}</div>
-              <div class="wm-prod-price">${p.price} ${p.discount?`<span style="font-size:.65rem;color:var(--green);font-weight:500;">-${p.discount}%</span>`:''}</div>
-              <div class="wm-prod-actions">
-                <label class="toggle" style="transform:scale(0.8);transform-origin:left;" title="${isLive?'Hide':'Show'}">
-                  <input type="checkbox" ${isLive?'checked':''} onchange="wmToggleProduct('${p.id}',this.checked)">
-                  <span class="toggle-slider"></span>
-                </label>
-                <button class="btn btn-xs btn-ghost" onclick="wmEditProduct('${p.id}',event)" title="Edit">✏️</button>
-                <button class="btn btn-xs btn-danger" onclick="wmDeleteProduct('${p.id}')" title="Delete">🗑️</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-       </div>`
-  }`;
+  <!-- ── ALL PLATFORMS ── -->
+  <div style="font-size:0.8rem;font-weight:700;margin-bottom:14px;color:var(--text2);letter-spacing:.04em;">ALL PLATFORMS</div>
+  ${allPlatformsHTML}`;
 }
 
 function wmSaveProduct() {
@@ -4905,6 +4919,36 @@ function wmSaveProduct() {
   const isPaused = APP.storage.websiteConfig?.paused===true;
   if(!isPaused){ autoUploadProductToWebsite(prod).catch(()=>{}); }
   showToast('✅ Product saved!','success',name+' added to '+platform);
+  wmClearForm();
+  wmSwitch('products');
+}
+
+function wmSaveProductOnly() {
+  const name  = (document.getElementById('wm-p-name')?.value||'').trim();
+  const price = (document.getElementById('wm-p-price')?.value||'').trim();
+  const link  = (document.getElementById('wm-p-link')?.value||'').trim();
+  if(!name||!price||!link){showToast('⚠️ Name, price and affiliate link are required','warning');return;}
+  const platform = window._wmAddPlatform || 'Flipkart';
+  const prod = {
+    id: 'prod_'+Date.now(),
+    name, price,
+    platform,
+    category: document.getElementById('wm-p-cat')?.value||'',
+    discount:  document.getElementById('wm-p-disc')?.value||'',
+    originalPrice: document.getElementById('wm-p-orig')?.value||'',
+    badge:     document.getElementById('wm-p-badge')?.value||'',
+    affiliateLink: link,
+    imgUrl:    document.getElementById('wm-p-img')?.value||'',
+    active: true,
+    websiteVisible: false,  // Hidden from customer website
+    addedAt: Date.now()
+  };
+  APP.storage.products = APP.storage.products||[];
+  APP.storage.products.unshift(prod);
+  saveStorage('products');
+  logActivity('💾 Saved (hidden): '+name+' ('+platform+')');
+  updateBadges();
+  showToast('💾 Saved to hub!','info',name+' is hidden from website. Toggle to publish anytime.');
   wmClearForm();
   wmSwitch('products');
 }
@@ -5082,7 +5126,340 @@ function renderWmAnalytics() {
   <button class="btn btn-ghost btn-sm btn-full" onclick="exportWebsiteData()">📥 Export Data</button>`;
 }
 
-/* ── WM Actions ── */
+/* ── AI Studio ── */
+function renderWmAI() {
+  const apis = APP.storage.apis || {};
+  const hasGroq = apis.groq?.length > 4;
+  const hasSD   = apis.stability_ai?.length > 4;
+  const prods   = APP.storage.products || [];
+
+  return `
+  <div style="font-size:0.9rem;font-weight:700;margin-bottom:4px;">✨ AI Studio</div>
+  <div style="font-size:0.72rem;color:var(--text3);margin-bottom:16px;">Generate captions, descriptions & product images using AI</div>
+
+  <!-- API KEYS STATUS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+    <div style="background:var(--bg3);border:1px solid ${hasGroq?'rgba(0,229,160,.3)':'var(--border2)'};border-radius:10px;padding:10px 12px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:${hasGroq?'var(--green)':'var(--red)'};"></div>
+        <span style="font-size:0.75rem;font-weight:700;">Groq API</span>
+        <span style="font-size:0.65rem;color:var(--text3);margin-left:auto;">${hasGroq?'✅ Connected':'❌ Not set'}</span>
+      </div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:6px;">Caption & description — FREE & fast</div>
+      <input type="password" id="wm-groq-key" placeholder="${hasGroq?'••••••••• (saved)':'Paste Groq API key...'}"
+        style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:0.72rem;outline:none;">
+      <div style="display:flex;gap:5px;margin-top:6px;">
+        <button class="btn btn-primary btn-xs btn-full" onclick="wmSaveGroqKey()">💾 Save</button>
+        <a href="https://console.groq.com" target="_blank" class="btn btn-ghost btn-xs" style="white-space:nowrap;">Get Free Key ↗</a>
+      </div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid ${hasSD?'rgba(0,229,160,.3)':'var(--border2)'};border-radius:10px;padding:10px 12px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:${hasSD?'var(--green)':'var(--red)'};"></div>
+        <span style="font-size:0.75rem;font-weight:700;">Stability AI</span>
+        <span style="font-size:0.65rem;color:var(--text3);margin-left:auto;">${hasSD?'✅ Connected':'❌ Not set'}</span>
+      </div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:6px;">Stable Diffusion image generation</div>
+      <input type="password" id="wm-sd-key" placeholder="${hasSD?'••••••••• (saved)':'Paste Stability AI key...'}"
+        style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:0.72rem;outline:none;">
+      <div style="display:flex;gap:5px;margin-top:6px;">
+        <button class="btn btn-primary btn-xs btn-full" onclick="wmSaveSDKey()">💾 Save</button>
+        <a href="https://platform.stability.ai/account/keys" target="_blank" class="btn btn-ghost btn-xs" style="white-space:nowrap;">Get Key ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- SELECT PRODUCT -->
+  <div class="wm-edit-panel" style="margin-bottom:12px;">
+    <div style="font-size:0.78rem;font-weight:700;margin-bottom:10px;">🛍️ Select Product</div>
+    <select id="wm-ai-prod" onchange="wmAISelectProd(this.value)"
+      style="width:100%;padding:9px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:0.82rem;outline:none;">
+      <option value="">— Choose a product —</option>
+      ${prods.map(p=>`<option value="${p.id}">${p.name} · ${p.price} · ${p.platform||''}</option>`).join('')}
+    </select>
+    <div id="wm-ai-prod-preview" style="margin-top:10px;display:none;background:var(--bg3);border-radius:8px;padding:10px;display:flex;gap:10px;align-items:center;">
+      <div id="wm-ai-prod-img" style="width:48px;height:48px;border-radius:8px;background:var(--bg4);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.5rem;"></div>
+      <div style="min-width:0;">
+        <div id="wm-ai-prod-name" style="font-size:0.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <div id="wm-ai-prod-meta" style="font-size:0.7rem;color:var(--text3);margin-top:2px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPTION & DESCRIPTION -->
+  <div class="wm-edit-panel" style="margin-bottom:12px;">
+    <div style="font-size:0.78rem;font-weight:700;margin-bottom:10px;">📝 Caption & Description</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <button class="btn btn-primary btn-sm" onclick="wmGenCaption()" ${!hasGroq?'disabled title="Add Groq API key first"':''}>
+        ✨ Generate Caption
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="wmGenDescription()" ${!hasGroq?'disabled title="Add Groq API key first"':''}>
+        📄 Generate Description
+      </button>
+    </div>
+    <div style="margin-bottom:8px;">
+      <label style="font-size:0.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:4px;">Caption</label>
+      <div id="wm-caption-loader" style="display:none;text-align:center;padding:12px;color:var(--text3);font-size:0.8rem;">⟳ Generating...</div>
+      <textarea id="wm-caption-out" rows="4" placeholder="Caption will appear here after generation..."
+        style="width:100%;padding:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:0.8rem;outline:none;resize:vertical;font-family:'DM Sans',sans-serif;"></textarea>
+      <button class="btn btn-ghost btn-xs" onclick="copyText(document.getElementById('wm-caption-out').value)" style="margin-top:4px;">📋 Copy</button>
+    </div>
+    <div>
+      <label style="font-size:0.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:4px;">Product Description</label>
+      <div id="wm-desc-loader" style="display:none;text-align:center;padding:12px;color:var(--text3);font-size:0.8rem;">⟳ Generating...</div>
+      <textarea id="wm-desc-out" rows="3" placeholder="Product description will appear here..."
+        style="width:100%;padding:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:0.8rem;outline:none;resize:vertical;font-family:'DM Sans',sans-serif;"></textarea>
+      <button class="btn btn-ghost btn-xs" onclick="copyText(document.getElementById('wm-desc-out').value)" style="margin-top:4px;">📋 Copy</button>
+    </div>
+  </div>
+
+  <!-- IMAGE -->
+  <div class="wm-edit-panel">
+    <div style="font-size:0.78rem;font-weight:700;margin-bottom:10px;">🎨 Product Image</div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px;">
+      <button id="img-tab-gen" onclick="wmImgTab('gen')"
+        style="padding:7px 14px;border:none;background:rgba(155,93,229,.1);color:var(--purple);font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:700;border-bottom:2px solid var(--purple);cursor:pointer;">
+        🤖 AI Generate
+      </button>
+      <button id="img-tab-url" onclick="wmImgTab('url')"
+        style="padding:7px 14px;border:none;background:none;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:600;border-bottom:2px solid transparent;cursor:pointer;">
+        🔗 Image URL
+      </button>
+      <button id="img-tab-upload" onclick="wmImgTab('upload')"
+        style="padding:7px 14px;border:none;background:none;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:600;border-bottom:2px solid transparent;cursor:pointer;">
+        📁 Upload
+      </button>
+    </div>
+
+    <!-- AI Generate panel -->
+    <div id="img-panel-gen">
+      <div class="wm-field">
+        <label>Image Prompt</label>
+        <textarea id="wm-img-prompt" rows="2" placeholder="e.g. Professional fashion photo of a floral kurta, Indian model, white background, studio lighting"
+          style="width:100%;padding:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:0.8rem;outline:none;resize:vertical;font-family:'DM Sans',sans-serif;"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+        <button class="btn btn-ghost btn-xs" onclick="wmAutoPrompt()" ${!hasGroq?'disabled':''}> ✨ Auto-write prompt</button>
+        <button class="btn btn-primary btn-sm" onclick="wmGenImage()" ${!hasSD?'disabled title="Add Stability AI key first"':''}> 🎨 Generate Image</button>
+      </div>
+      ${!hasSD?`<div style="background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.3);border-radius:8px;padding:10px;font-size:0.72rem;color:var(--gold);">⚠️ Add a Stability AI key above to enable image generation — get one free at platform.stability.ai</div>`:''}
+      <div id="wm-img-loader" style="display:none;text-align:center;padding:24px;color:var(--text3);">
+        <div style="font-size:1.8rem;margin-bottom:8px;animation:spin 1s linear infinite;">⟳</div>
+        <div style="font-size:0.8rem;">Generating with Stable Diffusion...</div>
+        <div style="font-size:0.7rem;margin-top:4px;opacity:.6;">This takes 15–30 seconds</div>
+      </div>
+    </div>
+
+    <!-- URL panel -->
+    <div id="img-panel-url" style="display:none;">
+      <div class="wm-field">
+        <label>Paste Image URL</label>
+        <input type="url" id="wm-img-url-input" placeholder="https://example.com/product-image.jpg"
+          oninput="wmPreviewImgUrl(this.value)">
+      </div>
+    </div>
+
+    <!-- Upload panel -->
+    <div id="img-panel-upload" style="display:none;">
+      <label style="display:block;border:2px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s;" onmouseover="this.style.borderColor='var(--pink)'" onmouseout="this.style.borderColor='var(--border2)'">
+        <input type="file" accept="image/*" onchange="wmHandleUpload(this)" style="display:none;">
+        <div style="font-size:2rem;margin-bottom:8px;">📁</div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Click to upload image</div>
+        <div style="font-size:0.7rem;color:var(--text3);margin-top:4px;">JPG, PNG, WEBP supported</div>
+      </label>
+    </div>
+
+    <!-- Image preview -->
+    <div id="wm-img-result" style="margin-top:12px;display:none;">
+      <img id="wm-img-preview" style="width:100%;border-radius:10px;border:1px solid var(--border2);display:block;" alt="Generated">
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm btn-full" onclick="wmApplyImageToProduct()">✅ Apply to Product</button>
+        <button class="btn btn-ghost btn-xs" onclick="copyText(document.getElementById('wm-img-preview').src)">📋 Copy URL</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── AI Studio Functions ── */
+function wmSaveGroqKey(){
+  const v=document.getElementById('wm-groq-key')?.value?.trim();
+  if(!v||v.length<10){showToast('⚠️ Enter a valid Groq key','warning');return;}
+  APP.storage.apis=APP.storage.apis||{};
+  APP.storage.apis.groq=v;
+  saveStorage('apis');
+  showToast('✅ Groq key saved!','success');
+  wmSwitch('ai');
+}
+
+function wmSaveSDKey(){
+  const v=document.getElementById('wm-sd-key')?.value?.trim();
+  if(!v||v.length<8){showToast('⚠️ Enter a valid Stability AI key','warning');return;}
+  APP.storage.apis=APP.storage.apis||{};
+  APP.storage.apis.stability_ai=v;
+  saveStorage('apis');
+  showToast('✅ Stability AI key saved!','success');
+  wmSwitch('ai');
+}
+
+function wmAISelectProd(id){
+  const p=(APP.storage.products||[]).find(x=>x.id===id);
+  const preview=document.getElementById('wm-ai-prod-preview');
+  if(!p||!id){if(preview)preview.style.display='none';return;}
+  if(preview)preview.style.display='flex';
+  const imgEl=document.getElementById('wm-ai-prod-img');
+  const nameEl=document.getElementById('wm-ai-prod-name');
+  const metaEl=document.getElementById('wm-ai-prod-meta');
+  if(imgEl){
+    if(p.imgUrl&&p.imgUrl.length>5){
+      imgEl.innerHTML=`<img src="${p.imgUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      imgEl.textContent=getCatEmoji(p.category);
+    }
+  }
+  if(nameEl)nameEl.textContent=p.name;
+  if(metaEl)metaEl.textContent=`${p.price} · ${p.platform||''} · ${p.category||''}`;
+}
+
+async function wmGenCaption(){
+  const id=document.getElementById('wm-ai-prod')?.value;
+  const p=(APP.storage.products||[]).find(x=>x.id===id);
+  if(!p){showToast('⚠️ Select a product first','warning');return;}
+  const loader=document.getElementById('wm-caption-loader');
+  const out=document.getElementById('wm-caption-out');
+  if(loader)loader.style.display='block';
+  if(out)out.value='';
+  try{
+    const result=await callAI('caption',p);
+    if(out)out.value=result;
+    showToast('✅ Caption generated!','success');
+  }catch(e){
+    showToast('❌ Failed: '+e.message,'error');
+  }finally{
+    if(loader)loader.style.display='none';
+  }
+}
+
+async function wmGenDescription(){
+  const id=document.getElementById('wm-ai-prod')?.value;
+  const p=(APP.storage.products||[]).find(x=>x.id===id);
+  if(!p){showToast('⚠️ Select a product first','warning');return;}
+  const loader=document.getElementById('wm-desc-loader');
+  const out=document.getElementById('wm-desc-out');
+  if(loader)loader.style.display='block';
+  if(out)out.value='';
+  try{
+    const fakeProd={...p,name:p.name};
+    const prompt=`Write a compelling 2-3 sentence product description for an Indian e-commerce listing: "${p.name}" (${p.category}, ${p.price}) from ${p.platform||''}. Highlight key benefits, quality and value. Professional tone.`;
+    const result=await callAI('caption',{...p,name:prompt,category:'description'});
+    if(out)out.value=result;
+    showToast('✅ Description generated!','success');
+  }catch(e){
+    showToast('❌ Failed: '+e.message,'error');
+  }finally{
+    if(loader)loader.style.display='none';
+  }
+}
+
+async function wmAutoPrompt(){
+  const id=document.getElementById('wm-ai-prod')?.value;
+  const p=(APP.storage.products||[]).find(x=>x.id===id);
+  if(!p){showToast('⚠️ Select a product first','warning');return;}
+  try{
+    const result=await callAI('img_prompt',p);
+    const el=document.getElementById('wm-img-prompt');
+    if(el)el.value=result;
+    showToast('✅ Prompt written!','success');
+  }catch(e){
+    showToast('❌ Failed: '+e.message,'error');
+  }
+}
+
+async function wmGenImage(){
+  const prompt=document.getElementById('wm-img-prompt')?.value?.trim();
+  if(!prompt){showToast('⚠️ Enter or generate a prompt first','warning');return;}
+  const sdKey=(APP.storage.apis||{}).stability_ai;
+  if(!sdKey){showToast('⚠️ Add Stability AI key first','warning');return;}
+  const loader=document.getElementById('wm-img-loader');
+  const result=document.getElementById('wm-img-result');
+  if(loader)loader.style.display='block';
+  if(result)result.style.display='none';
+  try{
+    // Stability AI Core (text-to-image) — v2beta
+    const formData=new FormData();
+    formData.append('prompt', prompt);
+    formData.append('output_format','webp');
+    const res=await fetch('https://api.stability.ai/v2beta/stable-image/generate/core',{
+      method:'POST',
+      headers:{Authorization:'Bearer '+sdKey, Accept:'image/*'},
+      body:formData
+    });
+    if(!res.ok){
+      const t=await res.text();
+      throw new Error('Stability AI '+res.status+': '+t.slice(0,120));
+    }
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const img=document.getElementById('wm-img-preview');
+    if(img){img.src=url;}
+    if(result)result.style.display='block';
+    showToast('✅ Image generated!','success');
+  }catch(e){
+    showToast('❌ Image failed: '+e.message,'error','Check your Stability AI key');
+  }finally{
+    if(loader)loader.style.display='none';
+  }
+}
+
+function wmImgTab(tab){
+  ['gen','url','upload'].forEach(t=>{
+    const panel=document.getElementById('img-panel-'+t);
+    const btn=document.getElementById('img-tab-'+t);
+    if(panel)panel.style.display=t===tab?'block':'none';
+    if(btn){
+      btn.style.background=t===tab?'rgba(155,93,229,.1)':'none';
+      btn.style.color=t===tab?'var(--purple)':'var(--text2)';
+      btn.style.borderBottom=t===tab?'2px solid var(--purple)':'2px solid transparent';
+    }
+  });
+}
+
+function wmPreviewImgUrl(url){
+  if(!url||url.length<8)return;
+  const img=document.getElementById('wm-img-preview');
+  const result=document.getElementById('wm-img-result');
+  if(img){img.src=url;}
+  if(result)result.style.display='block';
+}
+
+function wmHandleUpload(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=document.getElementById('wm-img-preview');
+    const result=document.getElementById('wm-img-result');
+    if(img){img.src=e.target.result;}
+    if(result)result.style.display='block';
+    showToast('✅ Image loaded!','success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function wmApplyImageToProduct(){
+  const id=document.getElementById('wm-ai-prod')?.value;
+  const img=document.getElementById('wm-img-preview');
+  if(!id){showToast('⚠️ Select a product first','warning');return;}
+  if(!img||!img.src){showToast('⚠️ Generate or upload an image first','warning');return;}
+  const idx=(APP.storage.products||[]).findIndex(p=>p.id===id);
+  if(idx===-1)return;
+  APP.storage.products[idx].imgUrl=img.src;
+  saveStorage('products');
+  showToast('✅ Image applied to product!','success');
+  logActivity('🎨 Image updated: '+APP.storage.products[idx].name);
+  wmAISelectProd(id);
+}
+
 function wmToggleProduct(id, visible) {
   const idx = (APP.storage.products||[]).findIndex(p=>p.id===id);
   if(idx===-1)return;
@@ -7932,5 +8309,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 });
 </script>
+</body>
+</html>
 </body>
 </html>
