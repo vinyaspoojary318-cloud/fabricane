@@ -5129,8 +5129,9 @@ function renderWmAnalytics() {
 /* ── AI Studio ── */
 function renderWmAI() {
   const apis = APP.storage.apis || {};
-  const hasGroq = apis.groq?.length > 4;
-  const hasSD   = apis.stability_ai?.length > 4;
+  // Only show connected if key actually exists in saved storage
+  const hasGroq = !!(apis.groq && apis.groq.length > 8);
+  const hasSD   = !!(apis.stability_ai && apis.stability_ai.length > 8);
   const prods   = APP.storage.products || [];
 
   return `
@@ -5177,7 +5178,7 @@ function renderWmAI() {
       <option value="">— Choose a product —</option>
       ${prods.map(p=>`<option value="${p.id}">${p.name} · ${p.price} · ${p.platform||''}</option>`).join('')}
     </select>
-    <div id="wm-ai-prod-preview" style="margin-top:10px;display:none;background:var(--bg3);border-radius:8px;padding:10px;display:flex;gap:10px;align-items:center;">
+    <div id="wm-ai-prod-preview" style="margin-top:10px;display:none;background:var(--bg3);border-radius:8px;padding:10px;gap:10px;align-items:center;">
       <div id="wm-ai-prod-img" style="width:48px;height:48px;border-radius:8px;background:var(--bg4);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.5rem;"></div>
       <div style="min-width:0;">
         <div id="wm-ai-prod-name" style="font-size:0.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
@@ -5285,29 +5286,42 @@ function renderWmAI() {
 /* ── AI Studio Functions ── */
 function wmSaveGroqKey(){
   const v=document.getElementById('wm-groq-key')?.value?.trim();
-  if(!v||v.length<10){showToast('⚠️ Enter a valid Groq key','warning');return;}
+  if(!v||v.length<8){showToast('⚠️ Enter a valid Groq key (starts with gsk_...)','warning');return;}
   APP.storage.apis=APP.storage.apis||{};
   APP.storage.apis.groq=v;
-  saveStorage('apis');
-  showToast('✅ Groq key saved!','success');
-  wmSwitch('ai');
+  saveStorage('apis').then(()=>{
+    showToast('✅ Groq key saved!','success','Key stored in Firebase');
+    // Update UI in place without full re-render
+    const dot=document.querySelector('#wm-groq-key')?.closest('div[style*="bg3"]')?.querySelector('div[style*="border-radius:50%"]');
+    const status=document.querySelector('#wm-groq-key')?.closest('div[style*="bg3"]')?.querySelector('span[style*="margin-left:auto"]');
+    if(dot){dot.style.background='var(--green)';}
+    if(status){status.textContent='✅ Connected';}
+    const input=document.getElementById('wm-groq-key');
+    if(input){input.value='';input.placeholder='••••••••• (saved)';}
+  }).catch(e=>showToast('❌ Save failed: '+e.message,'error'));
 }
 
 function wmSaveSDKey(){
   const v=document.getElementById('wm-sd-key')?.value?.trim();
-  if(!v||v.length<8){showToast('⚠️ Enter a valid Stability AI key','warning');return;}
+  if(!v||v.length<8){showToast('⚠️ Enter a valid Stability AI key (starts with sk-...)','warning');return;}
   APP.storage.apis=APP.storage.apis||{};
   APP.storage.apis.stability_ai=v;
-  saveStorage('apis');
-  showToast('✅ Stability AI key saved!','success');
-  wmSwitch('ai');
+  saveStorage('apis').then(()=>{
+    showToast('✅ Stability AI key saved!','success','Key stored in Firebase');
+    const input=document.getElementById('wm-sd-key');
+    if(input){input.value='';input.placeholder='••••••••• (saved)';}
+    const dot=document.querySelector('#wm-sd-key')?.closest('div[style*="bg3"]')?.querySelector('div[style*="border-radius:50%"]');
+    const status=document.querySelector('#wm-sd-key')?.closest('div[style*="bg3"]')?.querySelector('span[style*="margin-left:auto"]');
+    if(dot){dot.style.background='var(--green)';}
+    if(status){status.textContent='✅ Connected';}
+  }).catch(e=>showToast('❌ Save failed: '+e.message,'error'));
 }
 
 function wmAISelectProd(id){
   const p=(APP.storage.products||[]).find(x=>x.id===id);
   const preview=document.getElementById('wm-ai-prod-preview');
-  if(!p||!id){if(preview)preview.style.display='none';return;}
-  if(preview)preview.style.display='flex';
+  if(!p||!id){if(preview){preview.style.display='none';}return;}
+  if(preview){preview.style.display='flex';}
   const imgEl=document.getElementById('wm-ai-prod-img');
   const nameEl=document.getElementById('wm-ai-prod-name');
   const metaEl=document.getElementById('wm-ai-prod-meta');
