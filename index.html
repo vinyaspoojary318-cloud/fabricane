@@ -4720,6 +4720,19 @@ let websiteTab = 'overview';
    Left: controls | Right: live mini preview
    Clicking preview item → opens its editor on left
 ═══════════════════════════════════════════════════ */
+function wmBuildSiteFrame(url) {
+  if (url && url !== 'fabricane.vercel.app') {
+    return '<iframe id="wm-site-iframe" src="https://' + url + '" style="width:100%;height:100%;border:none;display:block;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"></iframe>';
+  }
+  return '<div id="wm-no-site" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;text-align:center;padding:30px;">'
+    + '<div style="font-size:3rem;">🌐</div>'
+    + '<div style="font-size:1rem;font-weight:700;color:rgba(255,255,255,.7);">Connect Your Customer Website</div>'
+    + '<div style="font-size:0.78rem;color:rgba(255,255,255,.35);max-width:240px;line-height:1.6;">Your live storefront will appear here — changes reflect in real time.</div>'
+    + '<button onclick="wmSwitch(&quot;site&quot;)" style="padding:10px 22px;background:linear-gradient(135deg,#7B2FBE,#E040A0);border:none;border-radius:10px;color:#fff;font-size:0.82rem;font-weight:700;cursor:pointer;margin-top:4px;">⚙️ Set Website URL</button>'
+    + '<div style="font-size:0.68rem;color:rgba(255,255,255,.2);">Go to Site tab → paste your Vercel URL</div>'
+    + '</div>';
+}
+
 function renderWebsiteManager() {
   const isPaused = APP.storage.websiteConfig?.paused === true;
   const websiteUrl = APP.storage.settings?.websiteUrl || 'fabricane.vercel.app';
@@ -4729,8 +4742,9 @@ function renderWebsiteManager() {
   const html = `
   <style>
   /* ── Website Manager — Full Width ── */
-  #wm-wrap{display:flex;flex-direction:column;position:absolute;inset:0;overflow:hidden;}
-  #wm-left{overflow-y:auto;overflow-x:hidden;background:var(--bg1);padding:0;display:flex;flex-direction:column;flex:1;min-height:0;}
+  #wm-wrap{display:flex;flex-direction:row;position:absolute;inset:0;overflow:hidden;}
+  #wm-left{width:420px;min-width:320px;flex-shrink:0;overflow:hidden;background:var(--bg1);padding:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);}
+  #wm-right{flex:1;display:flex;flex-direction:column;background:#0a0a12;overflow:hidden;position:relative;}
   /* Left panel nav tabs */
   #wm-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
   #wm-tabs::-webkit-scrollbar{display:none}
@@ -4738,7 +4752,7 @@ function renderWebsiteManager() {
   .wmt.active{color:var(--pink);border-bottom-color:var(--pink);background:rgba(255,61,139,0.05);}
   .wmt:hover:not(.active){color:var(--text);background:var(--bg3);}
   /* Left content */
-  #wm-editor{padding:14px;flex:1;overflow-y:auto;min-height:0;}
+  #wm-editor{padding:14px;flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;}
   /* Status strip */
   #wm-status{display:flex;align-items:center;gap:8px;padding:8px 14px;background:${isPaused?'rgba(255,71,87,0.08)':'rgba(0,229,160,0.05)'};border-bottom:1px solid ${isPaused?'rgba(255,71,87,0.2)':'rgba(0,229,160,0.15)'};flex-shrink:0;flex-wrap:wrap;}
   /* Preview header */
@@ -4846,7 +4860,18 @@ function renderWebsiteManager() {
       </div>
     </div>
 
-    <!-- ── RIGHT PANEL REMOVED — now full width ── -->
+    <!-- ── RIGHT PANEL — Real Customer Website iframe ── -->
+    <div id="wm-right">
+      <div id="wm-preview-bar" style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:rgba(10,10,18,.9);border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite;"></div>
+        <span style="font-size:0.7rem;color:rgba(255,255,255,.5);font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🌐 ${websiteUrl}</span>
+        <button onclick="wmReloadSite()" title="Reload" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:0.8rem;padding:2px 6px;border-radius:4px;transition:color .15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">↺</button>
+        <button onclick="window.open('https://${websiteUrl}','_blank')" title="Open in new tab" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:0.8rem;padding:2px 6px;border-radius:4px;transition:color .15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">↗</button>
+      </div>
+      <div id="wm-site-frame-wrap" style="flex:1;position:relative;overflow:hidden;">
+        ${wmBuildSiteFrame(websiteUrl)}
+      </div>
+    </div>
   </div>`;
 
   document.getElementById('main-content').innerHTML = html;
@@ -5227,14 +5252,7 @@ function wmGalLoadForEdit(prod){
   wmGalRender();
 }
 
-function wmDeleteProduct(id) {
-  if(!confirm('Delete this product?')) return;
-  APP.storage.products = (APP.storage.products||[]).filter(p=>p.id!==id);
-  saveStorage('products');
-  updateBadges();
-  showToast('🗑️ Deleted','info');
-  wmSwitch('products');
-}
+
 
 
 /* ════════════════════════════════════════════════════════
@@ -6331,7 +6349,7 @@ function wmTTSaveHero(){
   APP.storage.websiteConfig.heroLine2=document.getElementById('tt-h2')?.value||'';
   APP.storage.websiteConfig.tagline=document.getElementById('tt-htag')?.value||'';
   APP.storage.websiteConfig.heroBadge=document.getElementById('tt-hbadge')?.value||'';
-  saveStorage('websiteConfig');showToast('✅ Hero saved!','success');wmCloseTooltip();refreshWmPreview();
+  saveStorage('websiteConfig').then(()=>wmReloadAfterSave());showToast('✅ Hero saved! Reloading website...','success');wmCloseTooltip();refreshWmPreview();
 }
 
 function wmEditDeal(evt){
@@ -6413,10 +6431,6 @@ function wmTTSaveCats(){
   saveStorage('websiteConfig');showToast('✅ Categories saved!','success');wmCloseTooltip();refreshWmPreview();
 }
 
-function wmSaveProduct(id) {
-  wmTTSave(id);
-}
-
 function wmDeleteProduct(id) {
   const p = (APP.storage.products||[]).find(x=>x.id===id);
   if(!p||!confirm(`Delete "${p.name}"? This cannot be undone.`))return;
@@ -6476,8 +6490,8 @@ function wmSaveHero() {
   APP.storage.websiteConfig.heroLine2=document.getElementById('wm-hero-l2')?.value||'';
   APP.storage.websiteConfig.tagline=document.getElementById('wm-hero-sub')?.value||'';
   APP.storage.websiteConfig.heroBadge=document.getElementById('wm-hero-badge')?.value||'';
-  saveStorage('websiteConfig');
-  showToast('✅ Hero saved!','success');
+  saveStorage('websiteConfig').then(()=>{ wmReloadAfterSave(); });
+  showToast('✅ Hero saved! Website reloading...','success');
   refreshWmPreview();
 }
 
@@ -6488,9 +6502,18 @@ function wmSaveSite() {
   APP.storage.websiteConfig.title=document.getElementById('ws-title2')?.value||'';
   APP.storage.websiteConfig.igHandle=document.getElementById('ws-ig2')?.value||'';
   APP.storage.settings.pintHandle=document.getElementById('ws-pint2')?.value.replace('@','')||'';
-  saveStorage('settings');saveStorage('websiteConfig');
-  showToast('✅ Site settings saved!','success');
-  // Re-render site tab so URL connection status updates
+  saveStorage('settings');
+  saveStorage('websiteConfig').then(()=>{
+    wmReloadAfterSave();
+    // Update iframe src if URL changed
+    const newUrl = APP.storage.settings?.websiteUrl;
+    const iframe = document.getElementById('wm-site-iframe');
+    const wrap = document.getElementById('wm-site-frame-wrap');
+    if(newUrl && wrap){
+      wrap.innerHTML = '<iframe id="wm-site-iframe" src="https://'+newUrl+'" style="width:100%;height:100%;border:none;display:block;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"></iframe>';
+    }
+  });
+  showToast('✅ Site settings saved! Website preview updated.','success');
   document.getElementById('wm-editor').innerHTML = renderWmSite();
   refreshWmPreview();
 }
@@ -6505,6 +6528,20 @@ function wmSaveAndOpenSite() {
   showToast('✅ URL saved!','success');
   window.open('https://'+raw,'_blank');
   document.getElementById('wm-editor').innerHTML = renderWmSite();
+}
+
+function wmReloadSite(){
+  const iframe = document.getElementById('wm-site-iframe');
+  if(iframe){ iframe.src = iframe.src; showToast('🔄 Reloading site preview...','info'); }
+  else { showToast('⚠️ No website connected — set URL in Site tab','warning'); }
+}
+
+function wmReloadAfterSave(){
+  // Reload iframe 1.5s after save to let Firebase propagate
+  setTimeout(()=>{
+    const iframe = document.getElementById('wm-site-iframe');
+    if(iframe) iframe.src = iframe.src;
+  }, 1500);
 }
 
 function wmEmbedPreview() {
@@ -7175,10 +7212,7 @@ function deployWebsite() {
   logActivity('🌐 Website deployment triggered');
 }
 
-function previewWebsite() {
-  const url = APP.storage.settings?.websiteUrl || 'fabricane.vercel.app';
-  window.open('https://' + url, '_blank');
-}
+
 
 // ── Auto-generate SEO for new products ───────────────────────────
 async function autoUploadProductToWebsite(product) {
