@@ -583,9 +583,16 @@ document.getElementById('manifest-link').href = URL.createObjectURL(blob);
         <span style="font-size:0.9rem;">🌐</span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:0.58rem;font-weight:700;color:var(--purple);letter-spacing:.05em;">ALWAYS SENT WITH EVERY LINK</div>
-          <div id="mc-website-url" style="font-size:0.68rem;color:var(--purple2);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">fabricane.vercel.app</div>
+          <input id="mc-website-url" type="url"
+            placeholder="https://yoursite.vercel.app"
+            style="width:100%;background:transparent;border:none;outline:none;font-size:0.7rem;color:var(--purple2);font-weight:600;padding:0;"
+            onchange="mcSaveWebUrl(this.value)"
+            onkeydown="if(event.key==='Enter'){mcSaveWebUrl(this.value);this.blur();}">
         </div>
-        <button onclick="mcCopyWebUrl()" style="padding:3px 8px;background:rgba(123,47,190,.15);border:1px solid rgba(123,47,190,.2);border-radius:5px;color:var(--purple);font-size:0.62rem;cursor:pointer;flex-shrink:0;">📋</button>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button onclick="mcSaveWebUrl(document.getElementById('mc-website-url').value)" title="Save" style="padding:3px 7px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.2);border-radius:5px;color:var(--green);font-size:0.62rem;cursor:pointer;">💾</button>
+          <button onclick="mcCopyWebUrl()" title="Copy" style="padding:3px 7px;background:rgba(123,47,190,.15);border:1px solid rgba(123,47,190,.2);border-radius:5px;color:var(--purple);font-size:0.62rem;cursor:pointer;">📋</button>
+        </div>
       </div>
 
       <!-- Tabs -->
@@ -1058,9 +1065,13 @@ function mcInit() {
   // Restore template
   const tmpl = document.getElementById('mc-msg-template');
   if(tmpl && mc.template) tmpl.value = mc.template;
-  // Website URL
+  // Website URL — load into editable input
   const webEl = document.getElementById('mc-website-url');
-  if(webEl) webEl.textContent = websiteUrl;
+  if(webEl) webEl.value = websiteUrl;
+  // API key — if already saved, update placeholder
+  if(keyInput && mc.apiKey) {
+    keyInput.placeholder = '✅ Saved — paste to replace';
+  }
   mcUpdateStatus();
   mcPopulateProductSelect();
   mcRenderKeywords();
@@ -1185,9 +1196,11 @@ function mcUpdateStatus() {
   const mc = APP.storage.manychat||{};
   const dot = document.getElementById('mc-dot');
   const label = document.getElementById('mc-status-label');
-  if(mc.apiKey){
+  // Check if API key exists in storage
+  const hasKey = !!(mc.apiKey && mc.apiKey.length > 8);
+  if(hasKey){
     if(dot){ dot.className='api-dot connected'; dot.style.animation='pulse 2s infinite'; }
-    if(label){ label.textContent='API connected'; label.style.color='var(--green)'; }
+    if(label){ label.textContent='✅ API connected'; label.style.color='var(--green)'; }
   } else {
     if(dot){ dot.className='api-dot disconnected'; dot.style.animation='none'; }
     if(label){ label.textContent='No API key'; label.style.color='var(--text3)'; }
@@ -1211,8 +1224,22 @@ function mcRefreshPreview() {
 
 function mcCopyAffLink() { showToast('Use 🔗 Copy Link on a keyword card','info'); }
 
+function mcSaveWebUrl(val) {
+  val = (val||'').trim().replace(/^https?:\/\//,'');
+  if(!val){ showToast('Type your website URL first','warning'); return; }
+  APP.storage.settings = APP.storage.settings||{};
+  APP.storage.settings.websiteUrl = val;
+  saveStorage('settings').then(()=>{
+    showToast('Website URL saved!','success');
+    mcRenderKeywords();
+    mcRefreshPreview();
+  }).catch(e=>showToast('Save failed: '+e.message,'error'));
+}
+
 function mcCopyWebUrl() {
-  navigator.clipboard.writeText('https://'+(APP.storage.settings?.websiteUrl||'fabricane.vercel.app'))
+  const urlEl = document.getElementById('mc-website-url');
+  const url = 'https://'+(urlEl?.value || APP.storage.settings?.websiteUrl||'fabricane.vercel.app');
+  navigator.clipboard.writeText(url)
     .then(()=>showToast('Website link copied!','success'))
     .catch(()=>showToast('Copy failed','error'));
 }
