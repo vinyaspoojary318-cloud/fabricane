@@ -1782,7 +1782,7 @@ function renderProducts() {
           <div><label>Original Price</label><input type="text" id="p-orig" placeholder="₹799"></div>
         </div>
         <div><label>EarnKaro Affiliate Link *</label><input type="url" id="p-link" placeholder="https://ekaro.in/..."></div>
-        <div style="margin-top:12px;"><label>Product Image</label>
+        <div style="margin-top:12px;"><label>Main Product Image</label>
           <label class="img-upload" style="cursor:pointer;display:block;">
             <input type="file" id="p-img-file" accept="image/*" style="display:none;" onchange="loadProductUpload(this)">
             <div class="upload-icon">🖼️</div>
@@ -1791,6 +1791,44 @@ function renderProducts() {
           </label>
           <input type="url" id="p-img-url" placeholder="Or paste image URL..." style="margin-top:8px;">
         </div>
+
+        <!-- ══════════════════════════════════════
+             📸 MULTI-ANGLE GALLERY SECTION
+             ══════════════════════════════════════ -->
+        <div style="margin-top:18px;background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <div style="font-size:0.88rem;font-weight:700;">📸 Product Gallery</div>
+              <div style="font-size:0.67rem;color:var(--text3);margin-top:2px;">Add multiple angles of the same product</div>
+            </div>
+            <span id="modal-gal-count" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-size:0.7rem;color:var(--text2);font-weight:600;">0 images</span>
+          </div>
+
+          <!-- Drop zone -->
+          <div id="modal-gal-drop"
+            ondragover="event.preventDefault();this.style.borderColor='var(--pink)';this.style.background='rgba(236,72,153,.06)'"
+            ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg3)'"
+            ondrop="modalGalDrop(event)"
+            onclick="document.getElementById('modal-gal-file').click()"
+            style="border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:var(--bg3);transition:all .2s;">
+            <input type="file" id="modal-gal-file" accept="image/*" multiple style="display:none" onchange="modalGalFiles(this.files)">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🖼️</div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--text2);">Drop images here or tap to browse</div>
+            <div style="font-size:0.65rem;color:var(--text3);margin-top:3px;">Select multiple files at once · JPG / PNG / WEBP</div>
+          </div>
+
+          <!-- URL paste -->
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <input type="url" id="modal-gal-url" placeholder="Or paste an image URL here…"
+              style="flex:1;font-size:0.78rem;"
+              onkeydown="if(event.key==='Enter'){modalGalAddUrl();event.preventDefault();}">
+            <button onclick="modalGalAddUrl()" class="btn btn-secondary btn-sm" style="white-space:nowrap;">+ Add URL</button>
+          </div>
+
+          <!-- Thumbnail strip -->
+          <div id="modal-gal-strip" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+        </div>
+
         <div style="margin-top:16px;display:flex;gap:10px;">
           <button class="btn btn-primary btn-full" onclick="saveProduct()">💾 Save Product</button>
           <button class="btn btn-ghost" onclick="closeModal('add-product-modal')">Cancel</button>
@@ -1847,6 +1885,7 @@ function saveProduct() {
     originalPrice: document.getElementById('p-orig').value,
     affiliateLink: link,
     imgUrl: document.getElementById('p-img-url').value,
+    galleryImgs: (window._modalGallery||[]).map(g=>g.src),
     active: true,
     addedAt: Date.now()
   };
@@ -1860,11 +1899,98 @@ function saveProduct() {
   } else {
     showToast('⏸ Product saved — not published', 'warning', 'Website is paused. Resume to publish new listings.');
   }
+  window._modalGallery = [];
+  modalGalRender();
   closeModal('add-product-modal');
   logActivity(`➕ Product added: ${name}`);
   updateBadges();
   showPage('products');
   showToast('✅ Product saved!', 'success', name + ' added to library');
+}
+
+
+/* ════════════════════════════════════════
+   📸 Add Product Modal — Gallery helpers
+   ════════════════════════════════════════ */
+window._modalGallery = [];  // [{src, type}]
+
+function modalGalRender(){
+  const strip = document.getElementById('modal-gal-strip');
+  const cnt   = document.getElementById('modal-gal-count');
+  const imgs  = window._modalGallery||[];
+  if(cnt) cnt.textContent = imgs.length + (imgs.length===1?' image':' images');
+  if(!strip) return;
+  if(!imgs.length){ strip.innerHTML=''; return; }
+  strip.innerHTML = imgs.map((img,i)=>`
+    <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;
+                border:2px solid ${i===0?'var(--pink)':'var(--border)'};flex-shrink:0;">
+      <img src="${img.src}" style="width:100%;height:100%;object-fit:cover;"
+           onerror="this.parentElement.style.background='var(--bg3)'">
+      <button onclick="window._modalGallery.splice(${i},1);modalGalRender()"
+        style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;
+               background:rgba(220,38,38,.9);color:#fff;border:none;font-size:9px;
+               cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;">✕</button>
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);
+                  font-size:7px;color:#fff;text-align:center;padding:2px 0;">
+        ${i===0?'⭐ Main':'#'+(i+1)}</div>
+    </div>`).join('');
+}
+
+function modalGalAddUrl(){
+  const inp = document.getElementById('modal-gal-url');
+  const url = (inp?.value||'').trim();
+  if(!url){ showToast('⚠️ Paste an image URL first','warning'); return; }
+  if((window._modalGallery||[]).find(g=>g.src===url)){ showToast('Already added','info'); inp.value=''; return; }
+  window._modalGallery = window._modalGallery||[];
+  window._modalGallery.push({src:url, type:'url'});
+  modalGalRender();
+  if(inp) inp.value='';
+  // Auto-fill main image field if empty
+  const mainUrl = document.getElementById('p-img-url');
+  if(mainUrl && !mainUrl.value) mainUrl.value = url;
+  showToast('✅ Image added to gallery','success');
+}
+
+function modalGalDrop(e){
+  e.preventDefault();
+  const drop = document.getElementById('modal-gal-drop');
+  if(drop){ drop.style.borderColor='var(--border)'; drop.style.background='var(--bg3)'; }
+  const items = e.dataTransfer?.items||[];
+  for(const item of items){
+    if(item.kind==='string' && item.type==='text/uri-list'){
+      item.getAsString(url=>{
+        if(!url.startsWith('http')) return;
+        window._modalGallery = window._modalGallery||[];
+        window._modalGallery.push({src:url.trim(), type:'url'});
+        modalGalRender();
+        showToast('🔗 URL image added','success');
+      });
+      return;
+    }
+  }
+  modalGalFiles(e.dataTransfer?.files);
+}
+
+function modalGalFiles(files){
+  if(!files||!files.length) return;
+  window._modalGallery = window._modalGallery||[];
+  let loaded = 0;
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')){
+      showToast('⚠️ '+file.name+' is not an image — skipped','warning'); return;
+    }
+    const fr = new FileReader();
+    fr.onload = ev => {
+      window._modalGallery.push({src:ev.target.result, type:'base64', name:file.name});
+      loaded++;
+      modalGalRender();
+      // Auto-fill main image on first file
+      const mainUrl = document.getElementById('p-img-url');
+      if(loaded===1 && mainUrl && !mainUrl.value) mainUrl.value = ev.target.result;
+    };
+    fr.readAsDataURL(file);
+  });
+  showToast('📸 Loading '+files.length+' image(s)…','info');
 }
 
 function loadProductUpload(input) {
@@ -4682,7 +4808,16 @@ function renderWebsiteManager() {
   .wm-field input,.wm-field textarea,.wm-field select{width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;transition:border .2s;}
   .wm-field input:focus,.wm-field textarea:focus{border-color:var(--pink);}
   .wm-field textarea{min-height:60px;resize:vertical;}
-  </style>
+  
+  /* Gallery drop zone drag state */
+  .wm-gal-drag { border-color:var(--accent) !important; background:rgba(168,85,247,.08) !important; }
+  .wm-gal-thumb { position:relative;width:70px;height:70px;border-radius:8px;overflow:hidden;border:1.5px solid var(--border2);cursor:grab;flex-shrink:0;transition:transform .15s; }
+  .wm-gal-thumb:hover { transform:scale(1.04); }
+  .wm-gal-thumb img { width:100%;height:100%;object-fit:cover;display:block; }
+  .wm-gal-thumb .wm-gal-del { position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(220,38,38,.9);color:#fff;border:none;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;opacity:0;transition:opacity .15s; }
+  .wm-gal-thumb:hover .wm-gal-del { opacity:1; }
+  .wm-gal-thumb .wm-gal-badge { position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:8px;color:#fff;text-align:center;padding:2px 0; }
+</style>
 
   <div id="wm-wrap">
     <!-- ── LEFT PANEL ── -->
@@ -4704,6 +4839,7 @@ function renderWebsiteManager() {
         <button class="wmt ${wm_editor_section==='site'?'active':''}" onclick="wmSwitch('site')">⚙️ Site</button>
         <button class="wmt ${wm_editor_section==='analytics'?'active':''}" onclick="wmSwitch('analytics')">📈 Analytics</button>
         <button class="wmt ${wm_editor_section==='ai'?'active':''}" onclick="wmSwitch('ai')" style="color:var(--purple);">✨ AI Studio</button>
+        <button class="wmt ${wm_editor_section==='gallery'?'active':''}" onclick="wmSwitch('gallery')" style="color:#e879f9;">📸 Gallery</button>
       </div>
       <div id="wm-editor">
         ${renderWmEditor(wm_editor_section)}
@@ -4749,6 +4885,7 @@ function renderWmEditor(section) {
     case 'site':      return renderWmSite();
     case 'analytics': return renderWmAnalytics();
     case 'ai':        return renderWmAI();
+    case 'gallery':   return renderWmGallery();
     default: return renderWmProducts();
   }
 }
@@ -4775,6 +4912,7 @@ function buildWmProdCard(p, color) {
     +   img
     +   '<span style="position:absolute;top:5px;right:5px;background:'+(isLive?'rgba(0,229,160,.9)':'rgba(100,100,120,.8)')+';color:#fff;font-size:0.58rem;font-weight:700;padding:2px 5px;border-radius:8px;">'+(isLive?'LIVE':'HIDDEN')+'</span>'
     +   badge
+    +   ((p.galleryImgs&&p.galleryImgs.length>0)?'<span style="position:absolute;bottom:5px;left:5px;background:rgba(0,0,0,.65);color:#fff;font-size:0.55rem;padding:2px 5px;border-radius:6px;">📸 '+p.galleryImgs.length+'</span>':'')
     + '</div>'
     + '<div class="wm-prod-body">'
     +   '<div class="wm-prod-name" title="'+p.name+'">'+p.name+'</div>'
@@ -4873,9 +5011,41 @@ function renderWmProducts() {
       <div class="wm-field" style="grid-column:1/-1"><label>Affiliate Link *</label>
         <input type="url" id="wm-p-link" placeholder="https://ekaro.in/...">
       </div>
-      <div class="wm-field" style="grid-column:1/-1"><label>Product Image URL</label>
+      <div class="wm-field" style="grid-column:1/-1"><label>Main Product Image URL</label>
         <input type="url" id="wm-p-img" placeholder="Paste image URL from product page">
       </div>
+    </div>
+
+    <!-- ── MULTI-ANGLE GALLERY ── -->
+    <div style="margin-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <label style="font-size:0.72rem;font-weight:600;color:var(--text2);letter-spacing:.04em;">📸 PRODUCT GALLERY — Multiple Angles</label>
+        <span id="wm-gal-count" style="font-size:0.65rem;color:var(--text3);">0 images</span>
+      </div>
+
+      <!-- Drop zone -->
+      <div id="wm-gal-drop"
+        ondragover="event.preventDefault();this.classList.add('wm-gal-drag')"
+        ondragleave="this.classList.remove('wm-gal-drag')"
+        ondrop="wmGalDrop(event)"
+        onclick="document.getElementById('wm-gal-file').click()"
+        style="border:2px dashed var(--border2);border-radius:10px;padding:18px 12px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);position:relative;">
+        <input type="file" id="wm-gal-file" accept="image/*" multiple style="display:none" onchange="wmGalFiles(this.files)">
+        <div style="font-size:1.6rem;margin-bottom:4px;">🖼️</div>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text2);">Drop images here or click to browse</div>
+        <div style="font-size:0.65rem;color:var(--text3);margin-top:3px;">JPG / PNG / WEBP · Any number of angles</div>
+      </div>
+
+      <!-- URL paste row -->
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input type="url" id="wm-gal-url" placeholder="Or paste an image URL and press Add +"
+          style="flex:1;background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text1);font-size:0.75rem;"
+          onkeydown="if(event.key==='Enter'){wmGalAddUrl();event.preventDefault();}">
+        <button onclick="wmGalAddUrl()" style="padding:7px 12px;background:var(--accent);border:none;border-radius:8px;color:#000;font-size:0.75rem;font-weight:700;cursor:pointer;">+ Add</button>
+      </div>
+
+      <!-- Thumbnail strip -->
+      <div id="wm-gal-strip" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;min-height:0;"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
       <button class="btn btn-primary" style="flex:2;padding:11px;font-size:0.88rem;background:${platInfo.color};border-color:${platInfo.color};" onclick="wmSaveProduct()">
@@ -4912,6 +5082,7 @@ function wmSaveProduct() {
     badge:     document.getElementById('wm-p-badge')?.value||'',
     affiliateLink: link,
     imgUrl:    document.getElementById('wm-p-img')?.value||'',
+    galleryImgs: (window._wmGallery||[]).map(g=>g.src),
     active: true, websiteVisible: true,
     addedAt: Date.now()
   };
@@ -4943,6 +5114,7 @@ function wmSaveProductOnly() {
     badge:     document.getElementById('wm-p-badge')?.value||'',
     affiliateLink: link,
     imgUrl:    document.getElementById('wm-p-img')?.value||'',
+    galleryImgs: (window._wmGallery||[]).map(g=>g.src),
     active: true,
     websiteVisible: false,  // Hidden from customer website
     addedAt: Date.now()
@@ -4963,6 +5135,96 @@ function wmClearForm() {
   });
   const cat=document.getElementById('wm-p-cat'); if(cat) cat.selectedIndex=0;
   const badge=document.getElementById('wm-p-badge'); if(badge) badge.selectedIndex=0;
+  // Clear gallery
+  window._wmGallery = [];
+  wmGalRender();
+}
+
+/* ════════════════════════════════════════
+   📸  PRODUCT GALLERY — Multi-angle images
+   ════════════════════════════════════════ */
+window._wmGallery = [];      // [{src, type}]   type: 'url'|'base64'
+
+function wmGalRender(){
+  const strip = document.getElementById('wm-gal-strip');
+  const cnt   = document.getElementById('wm-gal-count');
+  if(!strip) return;
+  const imgs = window._wmGallery||[];
+  if(cnt) cnt.textContent = imgs.length + (imgs.length===1?' image':' images');
+  if(!imgs.length){ strip.innerHTML=''; return; }
+  strip.innerHTML = imgs.map((img,i)=>`
+    <div class="wm-gal-thumb" title="${img.type==='base64'?'Uploaded file':'URL image'}">
+      <img src="${img.src}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22/>'">
+      <button class="wm-gal-del" onclick="wmGalRemove(${i})" title="Remove">✕</button>
+      <div class="wm-gal-badge">${i===0?'Main':'#'+(i+1)}</div>
+    </div>`).join('');
+}
+
+function wmGalRemove(i){
+  window._wmGallery.splice(i,1);
+  wmGalRender();
+}
+
+function wmGalAddUrl(){
+  const inp = document.getElementById('wm-gal-url');
+  const url = (inp?.value||'').trim();
+  if(!url){ showToast('⚠️ Paste an image URL first','warning'); return; }
+  if(window._wmGallery.find(g=>g.src===url)){ showToast('Already added','info'); inp.value=''; return; }
+  window._wmGallery.push({src:url, type:'url'});
+  wmGalRender();
+  if(inp) inp.value='';
+  showToast('✅ Image added to gallery','success');
+  // Auto-fill main image if empty
+  const mainImg = document.getElementById('wm-p-img');
+  if(mainImg && !mainImg.value) mainImg.value = url;
+}
+
+function wmGalDrop(e){
+  e.preventDefault();
+  document.getElementById('wm-gal-drop')?.classList.remove('wm-gal-drag');
+  const items = e.dataTransfer?.items || [];
+  const files = e.dataTransfer?.files || [];
+  // Check for URL drops first
+  for(const item of items){
+    if(item.kind==='string' && item.type==='text/uri-list'){
+      item.getAsString(url=>{ if(url.startsWith('http')){ window._wmGallery.push({src:url.trim(),type:'url'}); wmGalRender(); showToast('🔗 URL image added','success'); }});
+      return;
+    }
+  }
+  // File drops
+  wmGalFiles(files);
+}
+
+function wmGalFiles(files){
+  if(!files||!files.length) return;
+  let loaded=0;
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')){ showToast('⚠️ '+file.name+' is not an image','warning'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      window._wmGallery.push({src:ev.target.result, type:'base64', name:file.name});
+      loaded++;
+      wmGalRender();
+      // Auto-fill main image on first upload
+      const mainImg = document.getElementById('wm-p-img');
+      if(loaded===1 && mainImg && !mainImg.value) mainImg.value = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  showToast('📸 Loading '+files.length+' image(s)…','info');
+}
+
+function wmGalLoadForEdit(prod){
+  window._wmGallery = [];
+  if(prod.galleryImgs && prod.galleryImgs.length){
+    window._wmGallery = prod.galleryImgs.map(src=>({
+      src,
+      type: src.startsWith('data:') ? 'base64' : 'url'
+    }));
+  } else if(prod.imgUrl){
+    window._wmGallery = [{src:prod.imgUrl, type:'url'}];
+  }
+  wmGalRender();
 }
 
 function wmDeleteProduct(id) {
@@ -4972,6 +5234,217 @@ function wmDeleteProduct(id) {
   updateBadges();
   showToast('🗑️ Deleted','info');
   wmSwitch('products');
+}
+
+
+/* ════════════════════════════════════════════════════════
+   📸  GALLERY TAB — Multi-angle product images
+   ════════════════════════════════════════════════════════ */
+
+function renderWmGallery() {
+  const products = (APP.storage.products||[]).filter(p=>p.active!==false);
+  const selId = window._galSelProd || (products[0]?.id||'');
+  const sel = products.find(p=>p.id===selId)||products[0]||null;
+  const gallery = sel?.galleryImgs||[];
+
+  const prodOptions = products.map(p=>`
+    <div onclick="window._galSelProd='${p.id}';wmSwitch('gallery')"
+      style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;
+             background:${p.id===selId?'var(--bg3)':'transparent'};border:1.5px solid ${p.id===selId?'var(--accent)':'transparent'};
+             transition:all .15s;margin-bottom:4px;">
+      <div style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg3);border:1px solid var(--border2);">
+        ${p.imgUrl?`<img src="${p.imgUrl}" style="width:100%;height:100%;object-fit:cover;">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:1.2rem;">${getCatEmoji(p.category)}</div>`}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+        <div style="font-size:0.65rem;color:var(--text3);">${p.platform} · ${(p.galleryImgs||[]).length} angle${(p.galleryImgs||[]).length===1?'':'s'}</div>
+      </div>
+      ${(p.galleryImgs||[]).length>0?`<span style="background:var(--accent);color:#000;font-size:0.6rem;font-weight:700;padding:2px 6px;border-radius:10px;">${(p.galleryImgs||[]).length}</span>`:`<span style="background:var(--bg3);color:var(--text3);font-size:0.6rem;padding:2px 6px;border-radius:10px;">0</span>`}
+    </div>`).join('');
+
+  const thumbs = gallery.map((src,i)=>`
+    <div style="position:relative;width:90px;height:90px;border-radius:10px;overflow:hidden;
+                border:2px solid ${i===0?'var(--accent)':'var(--border2)'};flex-shrink:0;
+                box-shadow:${i===0?'0 0 0 2px rgba(168,85,247,.3)':'none'};">
+      <img src="${src}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.background='var(--bg3)'">
+      <button onclick="wmGalTabRemove('${sel?.id}',${i})"
+        style="position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+               background:rgba(220,38,38,.9);color:#fff;border:none;font-size:10px;cursor:pointer;
+               display:flex;align-items:center;justify-content:center;font-weight:700;">✕</button>
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:3px 0;
+                  background:linear-gradient(transparent,rgba(0,0,0,.7));
+                  font-size:0.58rem;color:#fff;text-align:center;font-weight:600;">
+        ${i===0?'⭐ Main':'Angle '+(i+1)}
+      </div>
+    </div>`).join('');
+
+  return `
+  <div style="display:flex;gap:0;height:100%;min-height:400px;">
+
+    <!-- LEFT — Product list -->
+    <div style="width:220px;flex-shrink:0;border-right:1px solid var(--border2);padding:14px 10px;overflow-y:auto;">
+      <div style="font-size:0.7rem;font-weight:700;color:var(--text3);letter-spacing:.05em;margin-bottom:10px;padding-left:4px;">SELECT PRODUCT</div>
+      ${products.length ? prodOptions : `<div style="text-align:center;color:var(--text3);font-size:0.78rem;padding:20px 0;">No products yet.<br>Add products first.</div>`}
+    </div>
+
+    <!-- RIGHT — Gallery editor -->
+    <div style="flex:1;padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;">
+
+      ${!sel ? `<div style="text-align:center;padding:40px;color:var(--text3);">← Select a product to manage its gallery</div>` : `
+
+      <!-- Product header -->
+      <div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--border2);">
+        <div style="width:52px;height:52px;border-radius:10px;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border2);">
+          ${sel.imgUrl?`<img src="${sel.imgUrl}" style="width:100%;height:100%;object-fit:cover;">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:1.5rem;background:var(--bg3);">${getCatEmoji(sel.category)}</div>`}
+        </div>
+        <div>
+          <div style="font-size:1rem;font-weight:700;">${sel.name}</div>
+          <div style="font-size:0.7rem;color:var(--text3);">${sel.platform} · ${sel.price}</div>
+        </div>
+        <div style="margin-left:auto;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);border-radius:8px;padding:6px 12px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:800;color:var(--accent);">${gallery.length}</div>
+          <div style="font-size:0.6rem;color:var(--text3);">angles saved</div>
+        </div>
+      </div>
+
+      <!-- Upload zone -->
+      <div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text2);letter-spacing:.04em;margin-bottom:8px;">📤 ADD IMAGES</div>
+        <div id="gal-tab-drop"
+          ondragover="event.preventDefault();this.classList.add('wm-gal-drag')"
+          ondragleave="this.classList.remove('wm-gal-drag')"
+          ondrop="wmGalTabDrop(event,'${sel.id}')"
+          onclick="document.getElementById('gal-tab-file').click()"
+          style="border:2px dashed var(--border2);border-radius:12px;padding:24px;text-align:center;
+                 cursor:pointer;transition:all .2s;background:var(--bg2);">
+          <input type="file" id="gal-tab-file" accept="image/*" multiple style="display:none"
+            onchange="wmGalTabFiles('${sel.id}',this.files)">
+          <div style="font-size:2rem;margin-bottom:6px;">🖼️</div>
+          <div style="font-size:0.85rem;font-weight:600;color:var(--text2);">Drop images here or click to browse</div>
+          <div style="font-size:0.68rem;color:var(--text3);margin-top:4px;">JPG · PNG · WEBP · Any number of angles</div>
+        </div>
+
+        <!-- URL paste -->
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <input type="url" id="gal-tab-url" placeholder="Or paste an image URL here…"
+            style="flex:1;background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;
+                   padding:9px 12px;color:var(--text1);font-size:0.78rem;"
+            onkeydown="if(event.key==='Enter'){wmGalTabAddUrl('${sel.id}');event.preventDefault();}">
+          <button onclick="wmGalTabAddUrl('${sel.id}')"
+            style="padding:9px 18px;background:var(--accent);border:none;border-radius:8px;
+                   color:#000;font-size:0.8rem;font-weight:700;cursor:pointer;white-space:nowrap;">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Current gallery -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:0.72rem;font-weight:700;color:var(--text2);letter-spacing:.04em;">🗂️ SAVED ANGLES (${gallery.length})</div>
+          ${gallery.length>0?`<button onclick="wmGalTabClearAll('${sel.id}')" style="font-size:0.65rem;color:var(--red);background:none;border:1px solid rgba(220,38,38,.25);border-radius:6px;padding:3px 8px;cursor:pointer;">🗑 Clear all</button>`:''}
+        </div>
+        ${gallery.length===0 ? `
+          <div style="border:1.5px dashed var(--border2);border-radius:10px;padding:28px;text-align:center;color:var(--text3);">
+            <div style="font-size:1.8rem;margin-bottom:6px;">📷</div>
+            <div style="font-size:0.8rem;">No angles added yet</div>
+            <div style="font-size:0.67rem;margin-top:4px;">Upload images above to show multiple product angles on the website</div>
+          </div>` : `
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">${thumbs}</div>
+          <div style="font-size:0.65rem;color:var(--text3);margin-top:8px;">⭐ First image = main display image · Drag to reorder (coming soon)</div>`}
+      </div>
+
+      <!-- Save button -->
+      <div style="padding-top:4px;border-top:1px solid var(--border2);">
+        <button onclick="wmGalTabSave('${sel.id}')"
+          style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;
+                 color:#000;font-size:0.88rem;font-weight:700;cursor:pointer;">
+          💾 Save Gallery to Website
+        </button>
+        <div style="font-size:0.65rem;color:var(--text3);text-align:center;margin-top:6px;">
+          Saved angles will show as a swipeable image carousel on the customer website
+        </div>
+      </div>
+
+      `}
+    </div>
+  </div>`;
+}
+
+/* ── Gallery Tab helpers ── */
+function wmGalTabRefresh(){ wmSwitch('gallery'); }
+
+function wmGalTabRemove(prodId, idx){
+  const i=(APP.storage.products||[]).findIndex(p=>p.id===prodId); if(i===-1)return;
+  APP.storage.products[i].galleryImgs = APP.storage.products[i].galleryImgs||[];
+  APP.storage.products[i].galleryImgs.splice(idx,1);
+  showToast('🗑 Image removed','info');
+  wmGalTabRefresh();
+}
+
+function wmGalTabClearAll(prodId){
+  if(!confirm('Remove all gallery images for this product?')) return;
+  const i=(APP.storage.products||[]).findIndex(p=>p.id===prodId); if(i===-1)return;
+  APP.storage.products[i].galleryImgs=[];
+  showToast('🗑 Gallery cleared','info');
+  wmGalTabRefresh();
+}
+
+function wmGalTabAddUrl(prodId){
+  const inp=document.getElementById('gal-tab-url');
+  const url=(inp?.value||'').trim(); if(!url){showToast('⚠️ Paste a URL first','warning');return;}
+  const i=(APP.storage.products||[]).findIndex(p=>p.id===prodId); if(i===-1)return;
+  APP.storage.products[i].galleryImgs=APP.storage.products[i].galleryImgs||[];
+  if(APP.storage.products[i].galleryImgs.includes(url)){showToast('Already added','info');inp.value='';return;}
+  APP.storage.products[i].galleryImgs.push(url);
+  if(inp)inp.value='';
+  showToast('✅ Image added','success');
+  wmGalTabRefresh();
+}
+
+function wmGalTabDrop(e,prodId){
+  e.preventDefault();
+  document.getElementById('gal-tab-drop')?.classList.remove('wm-gal-drag');
+  const items=e.dataTransfer?.items||[];
+  for(const item of items){
+    if(item.kind==='string'&&item.type==='text/uri-list'){
+      item.getAsString(url=>{
+        if(url.startsWith('http')){
+          const i=(APP.storage.products||[]).findIndex(p=>p.id===prodId); if(i===-1)return;
+          APP.storage.products[i].galleryImgs=APP.storage.products[i].galleryImgs||[];
+          APP.storage.products[i].galleryImgs.push(url.trim());
+          showToast('🔗 URL image added','success');
+          wmGalTabRefresh();
+        }
+      });
+      return;
+    }
+  }
+  wmGalTabFiles(prodId,e.dataTransfer?.files);
+}
+
+function wmGalTabFiles(prodId,files){
+  if(!files||!files.length)return;
+  const i=(APP.storage.products||[]).findIndex(p=>p.id===prodId); if(i===-1)return;
+  APP.storage.products[i].galleryImgs=APP.storage.products[i].galleryImgs||[];
+  let count=0;
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')){showToast('⚠️ '+file.name+' skipped — not an image','warning');return;}
+    const fr=new FileReader();
+    fr.onload=e=>{
+      APP.storage.products[i].galleryImgs.push(e.target.result);
+      count++;
+      if(count===files.length) wmGalTabRefresh();
+    };
+    fr.readAsDataURL(file);
+  });
+  showToast('📸 Loading '+files.length+' image(s)…','info');
+}
+
+function wmGalTabSave(prodId){
+  saveStorage('gallery').then(()=>{
+    showToast('✅ Gallery saved to website!','success');
+    logActivity('📸 Gallery updated for product');
+    wmGalTabRefresh();
+  }).catch(e=>showToast('❌ Save failed: '+e.message,'error'));
 }
 
 /* ── Deal Editor ── */
@@ -5702,6 +6175,33 @@ function wmEditProduct(id, evt){
   <div class="tt-field"><label>Badge</label>
     <select id="tt-badge-${id}"><option value="">None</option>${['Best Seller','New','Sale','Trending','Luxe Pick','Prime'].map(b=>`<option ${p.badge===b?'selected':''}>${b}</option>`).join('')}</select>
   </div>
+  <!-- Gallery section in edit tooltip -->
+  <div style="margin-top:10px;border-top:1px solid var(--border2);padding-top:10px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <label style="font-size:0.68rem;font-weight:700;color:var(--text2);letter-spacing:.04em;">📸 GALLERY · MULTI-ANGLE IMAGES</label>
+      <span id="tt-gal-count-${id}" style="font-size:0.62rem;color:var(--text3);">${(p.galleryImgs||[]).length} images</span>
+    </div>
+    <!-- Existing gallery thumbnails -->
+    <div id="tt-gal-strip-${id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
+      ${(p.galleryImgs||[]).map((src,gi)=>`
+        <div style="position:relative;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1.5px solid var(--border2);flex-shrink:0;">
+          <img src="${src}" style="width:100%;height:100%;object-fit:cover;">
+          <button onclick="wmTTGalRemove('${id}',${gi})" style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:rgba(220,38,38,.9);color:#fff;border:none;font-size:8px;cursor:pointer;line-height:1;">✕</button>
+          ${gi===0?'<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:7px;color:#fff;text-align:center;">Main</div>':''}
+        </div>`).join('')}
+    </div>
+    <!-- Add more images -->
+    <div style="display:flex;gap:5px;">
+      <input type="url" id="tt-gal-url-${id}" placeholder="Paste image URL…"
+        style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text1);font-size:0.7rem;"
+        onkeydown="if(event.key==='Enter'){wmTTGalAddUrl('${id}');event.preventDefault();}">
+      <button onclick="wmTTGalAddUrl('${id}')" style="padding:5px 10px;background:var(--accent);border:none;border-radius:6px;color:#000;font-size:0.7rem;font-weight:700;cursor:pointer;">+ URL</button>
+      <label style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:0.7rem;cursor:pointer;" title="Upload image file">
+        📁
+        <input type="file" accept="image/*" multiple style="display:none" onchange="wmTTGalFiles('${id}',this.files)">
+      </label>
+    </div>
+  </div>
   <div class="tt-vis-row">
     <span class="tt-vis-label">${p.websiteVisible!==false&&p.active!==false?'✅ Live on website':'⛔ Hidden'}</span>
     <label class="toggle" style="transform:scale(0.75);">
@@ -5729,6 +6229,55 @@ function wmTTLoadImg(input, id){
     refreshWmPreview();
   };
   fr.readAsDataURL(file);
+}
+
+/* Gallery helpers inside Edit tooltip */
+function wmTTGalRefresh(id){
+  const p=(APP.storage.products||[]).find(x=>x.id===id); if(!p) return;
+  const strip=document.getElementById('tt-gal-strip-'+id);
+  const cnt=document.getElementById('tt-gal-count-'+id);
+  const imgs=p.galleryImgs||[];
+  if(cnt) cnt.textContent=imgs.length+' image'+(imgs.length===1?'':'s');
+  if(!strip) return;
+  strip.innerHTML=imgs.map((src,gi)=>`
+    <div style="position:relative;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1.5px solid var(--border2);flex-shrink:0;">
+      <img src="${src}" style="width:100%;height:100%;object-fit:cover;">
+      <button onclick="wmTTGalRemove('${id}',${gi})" style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:rgba(220,38,38,.9);color:#fff;border:none;font-size:8px;cursor:pointer;line-height:1;">✕</button>
+      ${gi===0?'<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:7px;color:#fff;text-align:center;">Main</div>':''}
+    </div>`).join('');
+}
+function wmTTGalRemove(id,gi){
+  const idx=(APP.storage.products||[]).findIndex(x=>x.id===id); if(idx===-1)return;
+  APP.storage.products[idx].galleryImgs=(APP.storage.products[idx].galleryImgs||[]);
+  APP.storage.products[idx].galleryImgs.splice(gi,1);
+  wmTTGalRefresh(id);
+  showToast('🗑 Image removed','info');
+}
+function wmTTGalAddUrl(id){
+  const inp=document.getElementById('tt-gal-url-'+id);
+  const url=(inp?.value||'').trim(); if(!url) return;
+  const idx=(APP.storage.products||[]).findIndex(x=>x.id===id); if(idx===-1)return;
+  APP.storage.products[idx].galleryImgs=APP.storage.products[idx].galleryImgs||[];
+  if(APP.storage.products[idx].galleryImgs.includes(url)){showToast('Already added','info');inp.value='';return;}
+  APP.storage.products[idx].galleryImgs.push(url);
+  wmTTGalRefresh(id);
+  if(inp) inp.value='';
+  showToast('✅ Image added','success');
+}
+function wmTTGalFiles(id,files){
+  if(!files||!files.length)return;
+  const idx=(APP.storage.products||[]).findIndex(x=>x.id===id); if(idx===-1)return;
+  APP.storage.products[idx].galleryImgs=APP.storage.products[idx].galleryImgs||[];
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')) return;
+    const fr=new FileReader();
+    fr.onload=e=>{
+      APP.storage.products[idx].galleryImgs.push(e.target.result);
+      wmTTGalRefresh(id);
+    };
+    fr.readAsDataURL(file);
+  });
+  showToast('📸 Loading '+files.length+' image(s)…','info');
 }
 
 function wmTTPreview(id){
