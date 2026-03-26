@@ -847,6 +847,7 @@ function getDefaultStorage() {
       platform: 'instagram',
       history: []
     },
+    dealOfDay: { active: false, productId: '', title: '', sub: '', price: '', mrp: '', discount: '', imgUrl: '', link: '', endsAt: null },
     apis: {},
     webhook: { token: '', expiresAt: null, lastEvent: null, eventsToday: 0 },
     settings: {
@@ -1494,6 +1495,12 @@ function renderDashboard() {
     </div>
   </div>
 
+  <!-- ── FLOATING PRODUCT TICKER ── -->
+  <div id="prod-ticker-wrap">
+    <span class="ticker-label">🛍️ YOUR PRODUCTS</span>
+    <div class="ticker-track" id="prod-ticker-track"></div>
+  </div>
+
   <div class="grid-2" style="margin-bottom:20px;">
     <div class="card">
       <div class="section-title">📈 Earnings This Week</div>
@@ -1556,6 +1563,58 @@ function renderDashboard() {
   document.getElementById('main-content').innerHTML = html;
   renderEarningsChart();
   fetchTrendsIfStale();
+  renderProductTicker();
+}
+
+function renderProductTicker() {
+  const track = document.getElementById('prod-ticker-track');
+  if(!track) return;
+  const prods = (APP.storage.products || []).filter(p => p.active !== false);
+  if(!prods.length) {
+    document.getElementById('prod-ticker-wrap').style.display = 'none';
+    return;
+  }
+  // Duplicate for seamless loop
+  const items = [...prods, ...prods];
+  const getCatEmoji_local = cat => {
+    const m = {'Fashion':'👗','Electronics':'⚡','Beauty':'💄','Skincare':'🧴',
+      'Jewellery':'💍','Makeup':'💋','Wellness':'💊','Home':'🏠','Grooming':'🧔',
+      'Haircare':'💆','Sports':'🏋️','Grocery':'🥦','Footwear':'👟'};
+    return m[cat] || '🛍️';
+  };
+  const platColor = plat => ({
+    'Flipkart':'#172B8A','Myntra':'#FF3F6C','Amazon':'#FF9900',
+    'Meesho':'#9B26AF','Ajio':'#E8001C','Nykaa':'#FC2779',
+    'Shopsy':'#F8D000','The Man Company':'#C9A84C'
+  }[plat] || '#7B2FBE');
+
+  track.innerHTML = items.map(p => {
+    const imgHtml = (p.mainPhoto || p.imgUrl) && (p.mainPhoto || p.imgUrl).length > 5
+      ? `<img src="${p.mainPhoto || p.imgUrl}" alt="${p.name}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+      : '';
+    const emojiHtml = `<span style="display:${imgHtml?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;">${getCatEmoji_local(p.category)}</span>`;
+    const platDot = p.platform
+      ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${platColor(p.platform)};margin-right:3px;vertical-align:middle;"></span>`
+      : '';
+    const ratingHtml = p.rating
+      ? `<span class="ticker-card-rating">★ ${parseFloat(p.rating).toFixed(1)}</span>`
+      : '';
+    return `<div class="ticker-card" onclick="showPage('products')" title="${p.name}">
+      <div class="ticker-card-img">${imgHtml}${emojiHtml}</div>
+      <div class="ticker-card-body">
+        <div class="ticker-card-name">${p.name}</div>
+        <div class="ticker-card-meta">${platDot}${p.platform||''} · ${p.category||''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">
+        <div class="ticker-card-price">${p.price||'—'}</div>
+        ${ratingHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Adjust speed based on product count (more products = faster)
+  const speed = Math.max(18, Math.min(45, prods.length * 3));
+  track.style.animationDuration = speed + 's';
 }
 
 function getGreeting() {
@@ -1915,6 +1974,7 @@ function renderProducts() {
     <select id="prod-filter-plat" onchange="filterProducts()" style="width:130px;height:38px;">
       <option value="">All Platforms</option>
       <option>Flipkart</option><option>Myntra</option><option>Ajio</option><option>Amazon</option>
+      <option>Meesho</option><option>Nykaa</option><option>Shopsy</option><option>The Man Company</option>
     </select>
   </div>
 
@@ -1937,29 +1997,59 @@ function renderProducts() {
         <div class="form-row cols-2">
           <div><label>Category *</label>
             <select id="p-cat">
+              <option>Fashion</option><option>Electronics</option><option>Beauty</option>
               <option>Skincare</option><option>Makeup</option><option>Haircare</option>
-              <option>Fashion</option><option>Jewellery</option><option>Wellness</option>
+              <option>Jewellery</option><option>Wellness</option><option>Home</option>
+              <option>Grocery</option><option>Sports</option><option>Ethnic Wear</option>
+              <option>Sarees</option><option>Kurtis</option><option>Western Wear</option>
+              <option>Footwear</option><option>Accessories</option><option>Grooming</option>
+              <option>Beard Care</option><option>Face Care</option><option>Hair Care</option>
+              <option>Fragrance</option><option>Gift Sets</option><option>Bath & Body</option>
             </select>
           </div>
           <div><label>Platform *</label>
             <select id="p-plat">
               <option>Flipkart</option><option>Myntra</option><option>Ajio</option><option>Amazon</option>
+              <option>Meesho</option><option>Nykaa</option><option>Shopsy</option><option>The Man Company</option>
             </select>
           </div>
         </div>
         <div class="form-row cols-2">
-          <div><label>Discount %</label><input type="number" id="p-disc" placeholder="30"></div>
+          <div><label>Discount %</label><input type="number" id="p-disc" placeholder="30" min="0" max="100"></div>
           <div><label>Original Price</label><input type="text" id="p-orig" placeholder="₹799"></div>
         </div>
+        <div class="form-row cols-2">
+          <div>
+            <label>Rating (out of 5)</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+              <div id="p-rating-stars" style="display:flex;gap:4px;">
+                ${[1,2,3,4,5].map(n=>`<span data-val="${n}" onclick="setRatingStar(${n})" style="font-size:1.5rem;cursor:pointer;color:#ccc;transition:color .15s;" title="${n} star">★</span>`).join('')}
+              </div>
+              <span id="p-rating-label" style="background:#388e3c;color:#fff;font-size:0.75rem;font-weight:700;padding:3px 10px;border-radius:4px;min-width:36px;text-align:center;display:none;">—</span>
+              <input type="number" id="p-rating" placeholder="4.2" min="1" max="5" step="0.1" oninput="syncRatingStars(this.value)" style="width:70px;font-size:0.85rem;">
+            </div>
+            <div style="font-size:0.68rem;color:var(--text3);margin-top:4px;">Enter the actual platform rating or click stars. Leave blank = no rating shown.</div>
+          </div>
+          <div><label>Brand Name</label><input type="text" id="p-brand" placeholder="e.g. Lakme, Nike"></div>
+        </div>
         <div><label>EarnKaro Affiliate Link *</label><input type="url" id="p-link" placeholder="https://ekaro.in/..."></div>
-        <div style="margin-top:12px;"><label>Main Product Image</label>
+
+        <!-- ══ MAIN / COVER PHOTO ══ -->
+        <div style="margin-top:14px;background:var(--bg2);border:1.5px solid var(--pink);border-radius:14px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="font-size:1.1rem;">🖼️</span>
+            <div>
+              <div style="font-size:0.88rem;font-weight:700;color:var(--pink);">Main / Cover Photo</div>
+              <div style="font-size:0.67rem;color:var(--text3);">This is the photo customers see first on all listings &amp; Today's Deals</div>
+            </div>
+          </div>
           <label class="img-upload" style="cursor:pointer;display:block;">
             <input type="file" id="p-img-file" accept="image/*" style="display:none;" onchange="loadProductUpload(this)">
-            <div class="upload-icon">🖼️</div>
-            <p id="p-img-label">Tap here to upload from gallery</p>
-            <img id="p-img-preview" style="display:none;max-height:120px;margin-top:8px;border-radius:8px;width:100%;object-fit:cover;">
+            <div class="upload-icon">📸</div>
+            <p id="p-img-label">Tap to upload your best photo</p>
+            <img id="p-img-preview" style="display:none;max-height:140px;margin-top:8px;border-radius:8px;width:100%;object-fit:cover;">
           </label>
-          <input type="url" id="p-img-url" placeholder="Or paste image URL..." style="margin-top:8px;">
+          <input type="url" id="p-img-url" placeholder="Or paste main image URL..." style="margin-top:8px;">
         </div>
 
         <!-- ══════════════════════════════════════
@@ -2024,6 +2114,8 @@ function renderProductsGrid(products) {
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--pink);">${p.price}</span>
           ${p.discount?`<span style="font-size:0.7rem;color:var(--green);">-${p.discount}%</span>`:''}
+          ${p.rating?`<span style="font-size:0.7rem;background:#388e3c;color:#fff;padding:1px 5px;border-radius:3px;">★ ${p.rating}</span>`:''}
+          ${p.brand?`<span style="font-size:0.65rem;color:var(--text3);margin-left:2px;">${p.brand}</span>`:''}
           <span class="badge badge-purple" style="margin-left:auto;">${p.platform}</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -2038,13 +2130,46 @@ function renderProductsGrid(products) {
   </div>`;
 }
 
-function showAddProduct() { openModal('add-product-modal'); }
+function setRatingStar(val){
+  const inp=document.getElementById('p-rating');
+  if(inp) inp.value=val;
+  syncRatingStars(val);
+}
+function syncRatingStars(val){
+  const v=parseFloat(val)||0;
+  const stars=document.querySelectorAll('#p-rating-stars span');
+  const lbl=document.getElementById('p-rating-label');
+  stars.forEach((s,i)=>{
+    s.style.color = (i+1)<=Math.round(v) ? '#f5a623' : '#ccc';
+  });
+  if(lbl){ if(v>0){lbl.textContent=v.toFixed(1);lbl.style.display='inline-block';}else lbl.style.display='none'; }
+}
+
+function showAddProduct() {
+  // Reset all fields including new rating/brand
+  ['p-name','p-price','p-disc','p-orig','p-link','p-img-url','p-rating','p-brand'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  syncRatingStars(0);
+  window._modalGallery=[];
+  const strip=document.getElementById('modal-gal-strip');if(strip)strip.innerHTML='';
+  const cnt=document.getElementById('modal-gal-count');if(cnt)cnt.textContent='0 images';
+  const prev=document.getElementById('p-img-preview');if(prev){prev.style.display='none';prev.src='';}
+  openModal('add-product-modal');
+}
 
 function saveProduct() {
   const name = document.getElementById('p-name').value.trim();
   const price = document.getElementById('p-price').value.trim();
   const link = document.getElementById('p-link').value.trim();
   if (!name || !price || !link) { showToast('⚠️ Fill in required fields', 'warning'); return; }
+
+  const galleryImgs = (window._modalGallery||[]).map(g=>g.src);
+  const singleImgUrl = document.getElementById('p-img-url').value.trim();
+  // Main photo goes first — then gallery extras
+  const allImgUrls = [];
+  if (singleImgUrl && singleImgUrl.length > 5) allImgUrls.push(singleImgUrl);
+  galleryImgs.forEach(u => { if (u && u.length > 5 && !allImgUrls.includes(u)) allImgUrls.push(u); });
 
   const prod = {
     id: 'prod_' + Date.now(),
@@ -2053,9 +2178,12 @@ function saveProduct() {
     platform: document.getElementById('p-plat').value,
     discount: document.getElementById('p-disc').value,
     originalPrice: document.getElementById('p-orig').value,
+    rating: document.getElementById('p-rating')?.value?.trim() || '',
+    brand: document.getElementById('p-brand')?.value?.trim() || '',
     affiliateLink: link,
-    imgUrl: document.getElementById('p-img-url').value,
-    galleryImgs: (window._modalGallery||[]).map(g=>g.src),
+    imgUrl: singleImgUrl || (galleryImgs[0] || ''),  // first image as primary
+    imgUrls: allImgUrls,                              // ALL images for customer site gallery
+    galleryImgs: galleryImgs,                         // keep original for hub use
     active: true,
     addedAt: Date.now()
   };
@@ -5003,6 +5131,80 @@ function renderWebsiteManager() {
   .wm-gal-thumb .wm-gal-del { position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(220,38,38,.9);color:#fff;border:none;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;opacity:0;transition:opacity .15s; }
   .wm-gal-thumb:hover .wm-gal-del { opacity:1; }
   .wm-gal-thumb .wm-gal-badge { position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:8px;color:#fff;text-align:center;padding:2px 0; }
+
+/* ── Floating Product Ticker (dashboard) ── */
+#prod-ticker-wrap {
+  position:relative;
+  overflow:hidden;
+  margin-bottom:20px;
+  border-radius:14px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  padding:10px 0;
+  box-shadow:0 2px 10px rgba(120,60,200,.07);
+}
+#prod-ticker-wrap::before,
+#prod-ticker-wrap::after {
+  content:'';position:absolute;top:0;bottom:0;width:60px;z-index:2;pointer-events:none;
+}
+#prod-ticker-wrap::before { left:0;  background:linear-gradient(to right, var(--bg2), transparent); }
+#prod-ticker-wrap::after  { right:0; background:linear-gradient(to left,  var(--bg2), transparent); }
+
+.ticker-label {
+  position:absolute;top:50%;left:14px;transform:translateY(-50%);
+  font-size:0.6rem;font-weight:700;color:var(--text3);letter-spacing:.1em;
+  text-transform:uppercase;z-index:3;white-space:nowrap;
+  background:var(--bg2);padding:0 6px;
+}
+
+.ticker-track {
+  display:flex;gap:10px;
+  animation:tickerScroll 28s linear infinite;
+  width:max-content;
+}
+.ticker-track:hover { animation-play-state:paused; }
+@keyframes tickerScroll {
+  0%   { transform:translateX(0); }
+  100% { transform:translateX(-50%); }
+}
+
+.ticker-card {
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:10px;padding:8px 12px;
+  cursor:pointer;transition:border-color .2s,transform .2s;
+  flex-shrink:0;min-width:200px;max-width:240px;
+  user-select:none;
+}
+.ticker-card:hover {
+  border-color:var(--pink);
+  transform:translateY(-2px);
+  box-shadow:0 4px 14px rgba(236,72,153,.15);
+}
+.ticker-card-img {
+  width:44px;height:44px;border-radius:8px;overflow:hidden;
+  flex-shrink:0;background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;font-size:1.3rem;
+}
+.ticker-card-img img { width:100%;height:100%;object-fit:cover; }
+.ticker-card-body { flex:1;min-width:0; }
+.ticker-card-name {
+  font-size:0.75rem;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;color:var(--text);
+}
+.ticker-card-meta {
+  font-size:0.62rem;color:var(--text3);margin-top:1px;
+}
+.ticker-card-price {
+  font-size:0.82rem;font-weight:700;color:var(--pink);
+  font-family:'Playfair Display',serif;flex-shrink:0;
+}
+.ticker-card-rating {
+  font-size:0.6rem;background:#388e3c;color:#fff;
+  padding:1px 5px;border-radius:3px;font-weight:700;
+  white-space:nowrap;flex-shrink:0;
+}
+
 </style>
 
   <div id="wm-wrap">
@@ -5065,7 +5267,9 @@ function wmSwitch(section) {
     const matches = t.getAttribute('onclick')?.includes(`'${section}'`);
     t.classList.toggle('active', !!matches);
   });
-  document.getElementById('wm-editor').innerHTML = renderWmEditor(section);
+  const editorEl = document.getElementById('wm-editor');
+  editorEl.innerHTML = renderWmEditor(section);
+  editorEl.dataset.section = section;
   // When AI tab opens, run live key tests
   if(section === 'ai') {
     setTimeout(wmTestAllKeys, 200);
@@ -5195,9 +5399,24 @@ function renderWmProducts() {
       <div class="wm-field"><label>Price *</label><input type="text" id="wm-p-price" placeholder="₹499"></div>
       <div class="wm-field"><label>Original / MRP</label><input type="text" id="wm-p-orig" placeholder="₹799"></div>
       <div class="wm-field"><label>Category *</label>
-        <select id="wm-p-cat">${platInfo.cats.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+        <select id="wm-p-cat">
+              ${(APP.storage.websiteCategories&&APP.storage.websiteCategories.length
+                ?APP.storage.websiteCategories
+                :platInfo.cats
+              ).map(c=>`<option value="${c}">${c}</option>`).join('')}
+            </select>
       </div>
       <div class="wm-field"><label>Discount %</label><input type="number" id="wm-p-disc" placeholder="30" min="0" max="99"></div>
+      <div class="wm-field"><label>Rating (out of 5)</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <div id="wm-rating-stars" style="display:flex;gap:3px;">
+            ${[1,2,3,4,5].map(n=>`<span data-val="${n}" onclick="wmSetRatingStar(${n})" style="font-size:1.4rem;cursor:pointer;color:#ccc;transition:color .15s;">★</span>`).join('')}
+          </div>
+          <span id="wm-rating-label" style="background:#388e3c;color:#fff;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:4px;display:none;">—</span>
+          <input type="number" id="wm-p-rating" placeholder="4.2" min="1" max="5" step="0.1" oninput="wmSyncRatingStars(this.value)" style="width:60px;font-size:0.82rem;">
+        </div>
+      </div>
+      <div class="wm-field"><label>Brand Name</label><input type="text" id="wm-p-brand" placeholder="e.g. Lakme, Nike"></div>
       <div class="wm-field"><label>Badge</label>
         <select id="wm-p-badge">
           <option value="">— None —</option>
@@ -5208,7 +5427,7 @@ function renderWmProducts() {
       <div class="wm-field" style="grid-column:1/-1"><label>Affiliate Link *</label>
         <input type="url" id="wm-p-link" placeholder="https://ekaro.in/...">
       </div>
-      <div class="wm-field" style="grid-column:1/-1"><label>Main Product Image URL</label>
+      <div class="wm-field" style="grid-column:1/-1"><label>🖼️ Main / Cover Photo URL <span style="font-size:0.65rem;color:var(--pink);font-weight:600;">(shown first on listings)</span></label>
         <input type="url" id="wm-p-img" placeholder="Paste image URL from product page">
       </div>
     </div>
@@ -5269,6 +5488,12 @@ function wmSaveProduct() {
   const link  = (document.getElementById('wm-p-link')?.value||'').trim();
   if(!name||!price||!link){showToast('⚠️ Name, price and affiliate link are required','warning');return;}
   const platform = window._wmAddPlatform || 'Flipkart';
+  const wmGalleryImgs = (window._wmGallery||[]).map(g=>g.src);
+  const wmSingleImg = document.getElementById('wm-p-img')?.value||'';
+  const wmAllImgUrls = [];
+  if (wmSingleImg && wmSingleImg.length > 5) wmAllImgUrls.push(wmSingleImg);
+  wmGalleryImgs.forEach(u => { if (u && u.length > 5 && !wmAllImgUrls.includes(u)) wmAllImgUrls.push(u); });
+
   const prod = {
     id: 'prod_'+Date.now(),
     name, price,
@@ -5277,9 +5502,12 @@ function wmSaveProduct() {
     discount:  document.getElementById('wm-p-disc')?.value||'',
     originalPrice: document.getElementById('wm-p-orig')?.value||'',
     badge:     document.getElementById('wm-p-badge')?.value||'',
+    rating:    document.getElementById('wm-p-rating')?.value?.trim()||'',
+    brand:     document.getElementById('wm-p-brand')?.value?.trim()||'',
     affiliateLink: link,
-    imgUrl:    document.getElementById('wm-p-img')?.value||'',
-    galleryImgs: (window._wmGallery||[]).map(g=>g.src),
+    imgUrl:    wmSingleImg || (wmGalleryImgs[0]||''),
+    imgUrls:   wmAllImgUrls,
+    galleryImgs: wmGalleryImgs,
     active: true, websiteVisible: true,
     addedAt: Date.now()
   };
@@ -5301,6 +5529,12 @@ function wmSaveProductOnly() {
   const link  = (document.getElementById('wm-p-link')?.value||'').trim();
   if(!name||!price||!link){showToast('⚠️ Name, price and affiliate link are required','warning');return;}
   const platform = window._wmAddPlatform || 'Flipkart';
+  const wmGalleryImgs2 = (window._wmGallery||[]).map(g=>g.src);
+  const wmSingleImg2 = document.getElementById('wm-p-img')?.value||'';
+  const wmAllImgUrls2 = [];
+  if (wmSingleImg2 && wmSingleImg2.length > 5) wmAllImgUrls2.push(wmSingleImg2);
+  wmGalleryImgs2.forEach(u => { if (u && u.length > 5 && !wmAllImgUrls2.includes(u)) wmAllImgUrls2.push(u); });
+
   const prod = {
     id: 'prod_'+Date.now(),
     name, price,
@@ -5309,9 +5543,12 @@ function wmSaveProductOnly() {
     discount:  document.getElementById('wm-p-disc')?.value||'',
     originalPrice: document.getElementById('wm-p-orig')?.value||'',
     badge:     document.getElementById('wm-p-badge')?.value||'',
+    rating:    document.getElementById('wm-p-rating')?.value?.trim()||'',
+    brand:     document.getElementById('wm-p-brand')?.value?.trim()||'',
     affiliateLink: link,
-    imgUrl:    document.getElementById('wm-p-img')?.value||'',
-    galleryImgs: (window._wmGallery||[]).map(g=>g.src),
+    imgUrl:    wmSingleImg2 || (wmGalleryImgs2[0]||''),
+    imgUrls:   wmAllImgUrls2,
+    galleryImgs: wmGalleryImgs2,
     active: true,
     websiteVisible: false,  // Hidden from customer website
     addedAt: Date.now()
@@ -5327,14 +5564,28 @@ function wmSaveProductOnly() {
 }
 
 function wmClearForm() {
-  ['wm-p-name','wm-p-price','wm-p-orig','wm-p-disc','wm-p-link','wm-p-img'].forEach(id=>{
+  ['wm-p-name','wm-p-price','wm-p-orig','wm-p-disc','wm-p-link','wm-p-img','wm-p-rating','wm-p-brand'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  wmSyncRatingStars(0);
   const cat=document.getElementById('wm-p-cat'); if(cat) cat.selectedIndex=0;
   const badge=document.getElementById('wm-p-badge'); if(badge) badge.selectedIndex=0;
   // Clear gallery
   window._wmGallery = [];
   wmGalRender();
+}
+
+function wmSetRatingStar(val){
+  const inp=document.getElementById('wm-p-rating');
+  if(inp) inp.value=val;
+  wmSyncRatingStars(val);
+}
+function wmSyncRatingStars(val){
+  const v=parseFloat(val)||0;
+  const stars=document.querySelectorAll('#wm-rating-stars span');
+  const lbl=document.getElementById('wm-rating-label');
+  stars.forEach((s,i)=>{ s.style.color=(i+1)<=Math.round(v)?'#f5a623':'#ccc'; });
+  if(lbl){ if(v>0){lbl.textContent=v.toFixed(1);lbl.style.display='inline-block';}else lbl.style.display='none'; }
 }
 
 /* ════════════════════════════════════════
@@ -5641,32 +5892,79 @@ function wmGalTabSave(prodId){
 function renderWmDeal() {
   const prods = APP.storage.products || [];
   const liveProd = prods.find(p=>p.websiteVisible!==false&&p.active!==false);
+  const dot = APP.storage.dealOfDay || {};
+  const isActive = dot.active === true;
+
+  // Build countdown end time display
+  let endTimeVal = '';
+  if(dot.endsAt) {
+    const d = new Date(dot.endsAt);
+    // format for datetime-local input
+    const pad = n => String(n).padStart(2,'0');
+    endTimeVal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   return `
-  <div style="font-size:0.82rem;font-weight:700;margin-bottom:12px;">⚡ Deal of the Day</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div style="font-size:0.82rem;font-weight:700;">⚡ Deal of the Day</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:0.72rem;color:${isActive?'var(--green)':'var(--text3)'};">${isActive?'● LIVE':'○ Hidden'}</span>
+      <button class="btn btn-xs ${isActive?'btn-secondary':'btn-primary'}" onclick="wmToggleDeal()">${isActive?'⏹ Hide Deal':'▶ Show Deal'}</button>
+    </div>
+  </div>
   <div class="wm-edit-panel">
     <div class="wm-field">
-      <label>Featured Product (Deal)</label>
-      <select id="wm-deal-prod" onchange="wmSetDeal(this.value)">
+      <label>Featured Product</label>
+      <select id="wm-deal-prod">
         <option value="">— Select product —</option>
-        ${prods.filter(p=>p.websiteVisible!==false&&p.active!==false).map(p=>`<option value="${p.id}" ${APP.storage.qlm?.productId===p.id?'selected':''}>${p.name} · ${p.price}</option>`).join('')}
+        ${prods.filter(p=>p.websiteVisible!==false&&p.active!==false).map(p=>`<option value="${p.id}" ${dot.productId===p.id?'selected':''}>${p.name} · ${p.price}</option>`).join('')}
       </select>
     </div>
     <div class="wm-field">
-      <label>Deal Subtitle</label>
-      <input type="text" id="wm-deal-sub" value="${APP.storage.websiteConfig?.dealSub||''}" placeholder="e.g. Big Billion Days — Limited Time" oninput="wmLivePreview()">
+      <label>Custom Deal Title <span style="font-weight:400;color:var(--text3)">(optional — defaults to product name)</span></label>
+      <input type="text" id="wm-deal-title" value="${dot.title||''}" placeholder="e.g. Today's Hottest Pick!">
     </div>
-    <button class="btn btn-primary btn-full" onclick="wmSaveDeal()" style="margin-top:8px;">💾 Save Deal</button>
+    <div class="wm-field">
+      <label>Deal Subtitle</label>
+      <input type="text" id="wm-deal-sub" value="${dot.sub||APP.storage.websiteConfig?.dealSub||''}" placeholder="e.g. Big Billion Days — Limited Time">
+    </div>
+    <div class="wm-field">
+      <label>Override Price <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+      <input type="text" id="wm-deal-price" value="${dot.price||''}" placeholder="e.g. ₹999">
+    </div>
+    <div class="wm-field">
+      <label>Original MRP / Strikethrough Price</label>
+      <input type="text" id="wm-deal-mrp" value="${dot.mrp||''}" placeholder="e.g. ₹1,999">
+    </div>
+    <div class="wm-field">
+      <label>Discount % <span style="font-weight:400;color:var(--text3)">(shown as badge)</span></label>
+      <input type="number" id="wm-deal-disc" value="${dot.discount||''}" placeholder="e.g. 50" min="0" max="100">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="wmSaveDeal()" style="margin-top:8px;">💾 Save Deal Info</button>
     ${liveProd?'':`<div style="margin-top:10px;font-size:0.75rem;color:var(--gold);background:rgba(245,200,66,0.07);padding:8px;border-radius:6px;">⚠️ Add and publish at least one product to set a deal.</div>`}
   </div>
+
   <div class="wm-edit-panel" style="margin-top:10px;background:rgba(0,229,160,0.04);border-color:rgba(0,229,160,0.15);">
-    <div style="font-size:0.78rem;font-weight:600;margin-bottom:8px;color:var(--green);">⏰ Countdown Timer</div>
-    <div style="font-size:0.72rem;color:var(--text2);">The countdown auto-starts from hub's active QLM time. No configuration needed — it runs live.</div>
+    <div style="font-size:0.78rem;font-weight:600;margin-bottom:12px;color:var(--green);">⏰ Countdown Timer</div>
+    <div class="wm-field">
+      <label>Deal Ends At</label>
+      <input type="datetime-local" id="wm-deal-endtime" value="${endTimeVal}" style="color-scheme:dark;">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <button class="btn btn-ghost btn-xs" onclick="wmSetCountdownPreset(1)">+1 Hour</button>
+      <button class="btn btn-ghost btn-xs" onclick="wmSetCountdownPreset(6)">+6 Hours</button>
+      <button class="btn btn-ghost btn-xs" onclick="wmSetCountdownPreset(12)">+12 Hours</button>
+      <button class="btn btn-ghost btn-xs" onclick="wmSetCountdownPreset(24)">+24 Hours</button>
+      <button class="btn btn-ghost btn-xs" onclick="wmSetCountdownPreset(48)">+2 Days</button>
+    </div>
+    <div id="wm-countdown-preview" style="font-size:0.75rem;color:var(--text2);margin-bottom:10px;"></div>
+    <button class="btn btn-primary btn-full" onclick="wmSaveCountdown()">⏰ Set Countdown Timer</button>
   </div>`;
 }
 
 /* ── Categories Editor ── */
 function renderWmCategories() {
-  const cats = APP.storage.websiteCategories || ['Fashion','Electronics','Beauty','Skincare','Jewellery','Makeup','Wellness','Home'];
+  const cats = APP.storage.websiteCategories || ['Fashion','Electronics','Beauty','Skincare','Makeup','Haircare','Jewellery','Wellness','Home','Grocery','Sports','Ethnic Wear','Sarees','Kurtis','Western Wear','Footwear','Accessories','Grooming','Beard Care','Face Care','Hair Care','Fragrance','Gift Sets','Bath & Body'];
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
     <div style="font-size:0.82rem;font-weight:700;">📂 Category Strip</div>
@@ -6667,6 +6965,7 @@ function wmDeleteProduct(id) {
 }
 
 function wmSetDeal(id) {
+  // Legacy compat — kept for any old references
   APP.storage.qlm = APP.storage.qlm||{};
   APP.storage.qlm.productId = id;
   const p = (APP.storage.products||[]).find(x=>x.id===id);
@@ -6676,16 +6975,73 @@ function wmSetDeal(id) {
 }
 
 function wmSaveDeal() {
+  APP.storage.dealOfDay = APP.storage.dealOfDay || {};
+  const dot = APP.storage.dealOfDay;
+  const prodId = document.getElementById('wm-deal-prod')?.value || '';
+  const p = (APP.storage.products||[]).find(x=>x.id===prodId);
+  dot.productId = prodId;
+  dot.title = document.getElementById('wm-deal-title')?.value || '';
+  dot.sub = document.getElementById('wm-deal-sub')?.value || '';
+  dot.price = document.getElementById('wm-deal-price')?.value || '';
+  dot.mrp = document.getElementById('wm-deal-mrp')?.value || '';
+  dot.discount = document.getElementById('wm-deal-disc')?.value || '';
+  if(p) { dot.imgUrl = p.imgUrl||''; dot.link = p.affiliateLink||''; }
+  // Also keep websiteConfig.dealSub for legacy
   APP.storage.websiteConfig = APP.storage.websiteConfig||{};
-  APP.storage.websiteConfig.dealSub = document.getElementById('wm-deal-sub')?.value||'';
-  wmSetDeal(document.getElementById('wm-deal-prod')?.value||'');
+  APP.storage.websiteConfig.dealSub = dot.sub;
+  saveStorage('dealOfDay');
   saveStorage('websiteConfig');
-  showToast('⚡ Deal saved!','success');
+  showToast('⚡ Deal info saved!','success');
   refreshWmPreview();
 }
 
+function wmToggleDeal() {
+  APP.storage.dealOfDay = APP.storage.dealOfDay || {};
+  APP.storage.dealOfDay.active = !APP.storage.dealOfDay.active;
+  saveStorage('dealOfDay').then(() => {
+    showToast(APP.storage.dealOfDay.active ? '✅ Deal is now LIVE on customer site!' : '⏹ Deal hidden from customer site', APP.storage.dealOfDay.active ? 'success' : 'info');
+    // Re-render the deal editor panel to update toggle button state
+    const editorEl = document.getElementById('wm-editor');
+    if(editorEl && editorEl.dataset.section === 'deal') editorEl.innerHTML = renderWmDeal();
+    refreshWmPreview();
+  });
+}
+
+function wmSetCountdownPreset(hours) {
+  const d = new Date(Date.now() + hours * 3600 * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  const val = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const inp = document.getElementById('wm-deal-endtime');
+  if(inp) { inp.value = val; wmUpdateCountdownPreview(d); }
+}
+
+function wmUpdateCountdownPreview(endDate) {
+  const el = document.getElementById('wm-countdown-preview');
+  if(!el) return;
+  const diff = endDate - Date.now();
+  if(diff <= 0) { el.textContent = '⚠️ This time is in the past!'; el.style.color = 'var(--red)'; return; }
+  const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
+  el.textContent = `⏱ Countdown: ${h}h ${m}m remaining from now`;
+  el.style.color = 'var(--green)';
+}
+
+function wmSaveCountdown() {
+  const inp = document.getElementById('wm-deal-endtime');
+  if(!inp || !inp.value) { showToast('⚠️ Please select an end time','warning'); return; }
+  const endsAt = new Date(inp.value).getTime();
+  if(endsAt <= Date.now()) { showToast('⚠️ End time must be in the future!','warning'); return; }
+  APP.storage.dealOfDay = APP.storage.dealOfDay || {};
+  APP.storage.dealOfDay.endsAt = endsAt;
+  saveStorage('dealOfDay').then(() => {
+    const d = new Date(endsAt);
+    showToast('⏰ Countdown set! Ends ' + d.toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}), 'success');
+    wmUpdateCountdownPreview(d);
+    refreshWmPreview();
+  });
+}
+
 function wmAddCategory() {
-  APP.storage.websiteCategories = APP.storage.websiteCategories||['Fashion','Electronics','Beauty','Skincare','Jewellery','Makeup','Wellness','Home'];
+  APP.storage.websiteCategories = APP.storage.websiteCategories||['Fashion','Electronics','Beauty','Skincare','Makeup','Haircare','Jewellery','Wellness','Home','Grocery','Sports','Ethnic Wear','Sarees','Kurtis','Western Wear','Footwear','Accessories','Grooming','Beard Care','Face Care','Hair Care','Fragrance','Gift Sets','Bath & Body'];
   const name = prompt('New category name:');
   if(!name||!name.trim())return;
   APP.storage.websiteCategories.push(name.trim());
