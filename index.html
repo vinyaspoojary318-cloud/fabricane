@@ -1495,12 +1495,6 @@ function renderDashboard() {
     </div>
   </div>
 
-  <!-- ── FLOATING PRODUCT TICKER ── -->
-  <div id="prod-ticker-wrap">
-    <span class="ticker-label">🛍️ YOUR PRODUCTS</span>
-    <div class="ticker-track" id="prod-ticker-track"></div>
-  </div>
-
   <div class="grid-2" style="margin-bottom:20px;">
     <div class="card">
       <div class="section-title">📈 Earnings This Week</div>
@@ -1563,58 +1557,6 @@ function renderDashboard() {
   document.getElementById('main-content').innerHTML = html;
   renderEarningsChart();
   fetchTrendsIfStale();
-  renderProductTicker();
-}
-
-function renderProductTicker() {
-  const track = document.getElementById('prod-ticker-track');
-  if(!track) return;
-  const prods = (APP.storage.products || []).filter(p => p.active !== false);
-  if(!prods.length) {
-    document.getElementById('prod-ticker-wrap').style.display = 'none';
-    return;
-  }
-  // Duplicate for seamless loop
-  const items = [...prods, ...prods];
-  const getCatEmoji_local = cat => {
-    const m = {'Fashion':'👗','Electronics':'⚡','Beauty':'💄','Skincare':'🧴',
-      'Jewellery':'💍','Makeup':'💋','Wellness':'💊','Home':'🏠','Grooming':'🧔',
-      'Haircare':'💆','Sports':'🏋️','Grocery':'🥦','Footwear':'👟'};
-    return m[cat] || '🛍️';
-  };
-  const platColor = plat => ({
-    'Flipkart':'#172B8A','Myntra':'#FF3F6C','Amazon':'#FF9900',
-    'Meesho':'#9B26AF','Ajio':'#E8001C','Nykaa':'#FC2779',
-    'Shopsy':'#F8D000','The Man Company':'#C9A84C'
-  }[plat] || '#7B2FBE');
-
-  track.innerHTML = items.map(p => {
-    const imgHtml = (p.mainPhoto || p.imgUrl) && (p.mainPhoto || p.imgUrl).length > 5
-      ? `<img src="${p.mainPhoto || p.imgUrl}" alt="${p.name}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
-      : '';
-    const emojiHtml = `<span style="display:${imgHtml?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;">${getCatEmoji_local(p.category)}</span>`;
-    const platDot = p.platform
-      ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${platColor(p.platform)};margin-right:3px;vertical-align:middle;"></span>`
-      : '';
-    const ratingHtml = p.rating
-      ? `<span class="ticker-card-rating">★ ${parseFloat(p.rating).toFixed(1)}</span>`
-      : '';
-    return `<div class="ticker-card" onclick="showPage('products')" title="${p.name}">
-      <div class="ticker-card-img">${imgHtml}${emojiHtml}</div>
-      <div class="ticker-card-body">
-        <div class="ticker-card-name">${p.name}</div>
-        <div class="ticker-card-meta">${platDot}${p.platform||''} · ${p.category||''}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">
-        <div class="ticker-card-price">${p.price||'—'}</div>
-        ${ratingHtml}
-      </div>
-    </div>`;
-  }).join('');
-
-  // Adjust speed based on product count (more products = faster)
-  const speed = Math.max(18, Math.min(45, prods.length * 3));
-  track.style.animationDuration = speed + 's';
 }
 
 function getGreeting() {
@@ -5131,80 +5073,6 @@ function renderWebsiteManager() {
   .wm-gal-thumb .wm-gal-del { position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(220,38,38,.9);color:#fff;border:none;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;opacity:0;transition:opacity .15s; }
   .wm-gal-thumb:hover .wm-gal-del { opacity:1; }
   .wm-gal-thumb .wm-gal-badge { position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:8px;color:#fff;text-align:center;padding:2px 0; }
-
-/* ── Floating Product Ticker (dashboard) ── */
-#prod-ticker-wrap {
-  position:relative;
-  overflow:hidden;
-  margin-bottom:20px;
-  border-radius:14px;
-  background:var(--bg2);
-  border:1px solid var(--border);
-  padding:10px 0;
-  box-shadow:0 2px 10px rgba(120,60,200,.07);
-}
-#prod-ticker-wrap::before,
-#prod-ticker-wrap::after {
-  content:'';position:absolute;top:0;bottom:0;width:60px;z-index:2;pointer-events:none;
-}
-#prod-ticker-wrap::before { left:0;  background:linear-gradient(to right, var(--bg2), transparent); }
-#prod-ticker-wrap::after  { right:0; background:linear-gradient(to left,  var(--bg2), transparent); }
-
-.ticker-label {
-  position:absolute;top:50%;left:14px;transform:translateY(-50%);
-  font-size:0.6rem;font-weight:700;color:var(--text3);letter-spacing:.1em;
-  text-transform:uppercase;z-index:3;white-space:nowrap;
-  background:var(--bg2);padding:0 6px;
-}
-
-.ticker-track {
-  display:flex;gap:10px;
-  animation:tickerScroll 28s linear infinite;
-  width:max-content;
-}
-.ticker-track:hover { animation-play-state:paused; }
-@keyframes tickerScroll {
-  0%   { transform:translateX(0); }
-  100% { transform:translateX(-50%); }
-}
-
-.ticker-card {
-  display:flex;align-items:center;gap:10px;
-  background:var(--bg3);border:1px solid var(--border2);
-  border-radius:10px;padding:8px 12px;
-  cursor:pointer;transition:border-color .2s,transform .2s;
-  flex-shrink:0;min-width:200px;max-width:240px;
-  user-select:none;
-}
-.ticker-card:hover {
-  border-color:var(--pink);
-  transform:translateY(-2px);
-  box-shadow:0 4px 14px rgba(236,72,153,.15);
-}
-.ticker-card-img {
-  width:44px;height:44px;border-radius:8px;overflow:hidden;
-  flex-shrink:0;background:var(--bg2);
-  display:flex;align-items:center;justify-content:center;font-size:1.3rem;
-}
-.ticker-card-img img { width:100%;height:100%;object-fit:cover; }
-.ticker-card-body { flex:1;min-width:0; }
-.ticker-card-name {
-  font-size:0.75rem;font-weight:600;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;color:var(--text);
-}
-.ticker-card-meta {
-  font-size:0.62rem;color:var(--text3);margin-top:1px;
-}
-.ticker-card-price {
-  font-size:0.82rem;font-weight:700;color:var(--pink);
-  font-family:'Playfair Display',serif;flex-shrink:0;
-}
-.ticker-card-rating {
-  font-size:0.6rem;background:#388e3c;color:#fff;
-  padding:1px 5px;border-radius:3px;font-weight:700;
-  white-space:nowrap;flex-shrink:0;
-}
-
 </style>
 
   <div id="wm-wrap">
@@ -5904,14 +5772,19 @@ function renderWmDeal() {
     endTimeVal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  // Check if timer has expired
+  const isExpired = dot.endsAt && dot.endsAt <= Date.now();
+  const effectivelyLive = isActive && !isExpired && dot.productId;
+
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
     <div style="font-size:0.82rem;font-weight:700;">⚡ Deal of the Day</div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:0.72rem;color:${isActive?'var(--green)':'var(--text3)'};">${isActive?'● LIVE':'○ Hidden'}</span>
+      <span style="font-size:0.72rem;color:${effectivelyLive?'var(--green)':isExpired?'var(--red)':'var(--text3)'};">${effectivelyLive?'● LIVE':isExpired?'⏰ EXPIRED':'○ Hidden'}</span>
       <button class="btn btn-xs ${isActive?'btn-secondary':'btn-primary'}" onclick="wmToggleDeal()">${isActive?'⏹ Hide Deal':'▶ Show Deal'}</button>
     </div>
   </div>
+  ${isExpired?`<div style="margin-bottom:10px;font-size:0.75rem;color:var(--red);background:rgba(255,80,80,0.07);padding:8px;border-radius:6px;">⏰ The countdown has ended — deal is now hidden on the customer site. Set a new end time below to show it again.</div>`:''}
   <div class="wm-edit-panel">
     <div class="wm-field">
       <label>Featured Product</label>
@@ -6986,12 +6859,19 @@ function wmSaveDeal() {
   dot.mrp = document.getElementById('wm-deal-mrp')?.value || '';
   dot.discount = document.getElementById('wm-deal-disc')?.value || '';
   if(p) { dot.imgUrl = p.imgUrl||''; dot.link = p.affiliateLink||''; }
+  // Auto-activate when a product is selected; deactivate if none chosen
+  if(prodId) dot.active = true;
+  // Reset expired timer if product is freshly set
+  if(dot.endsAt && dot.endsAt <= Date.now()) { dot.endsAt = null; }
   // Also keep websiteConfig.dealSub for legacy
   APP.storage.websiteConfig = APP.storage.websiteConfig||{};
   APP.storage.websiteConfig.dealSub = dot.sub;
   saveStorage('dealOfDay');
   saveStorage('websiteConfig');
-  showToast('⚡ Deal info saved!','success');
+  showToast(prodId ? '⚡ Deal saved & live on customer site!' : '⚡ Deal info saved!', 'success');
+  // Re-render deal editor panel
+  const editorEl = document.getElementById('wm-editor');
+  if(editorEl && editorEl.dataset.section === 'deal') editorEl.innerHTML = renderWmDeal();
   refreshWmPreview();
 }
 
@@ -7032,10 +6912,15 @@ function wmSaveCountdown() {
   if(endsAt <= Date.now()) { showToast('⚠️ End time must be in the future!','warning'); return; }
   APP.storage.dealOfDay = APP.storage.dealOfDay || {};
   APP.storage.dealOfDay.endsAt = endsAt;
+  // Auto-activate deal when countdown is set (if a product is chosen)
+  if(APP.storage.dealOfDay.productId) APP.storage.dealOfDay.active = true;
   saveStorage('dealOfDay').then(() => {
     const d = new Date(endsAt);
-    showToast('⏰ Countdown set! Ends ' + d.toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}), 'success');
+    showToast('⏰ Countdown set! Deal live until ' + d.toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}), 'success');
     wmUpdateCountdownPreview(d);
+    // Re-render deal editor to update status badge
+    const editorEl = document.getElementById('wm-editor');
+    if(editorEl && editorEl.dataset.section === 'deal') editorEl.innerHTML = renderWmDeal();
     refreshWmPreview();
   });
 }
