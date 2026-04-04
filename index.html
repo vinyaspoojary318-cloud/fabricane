@@ -774,8 +774,26 @@ async function saveStorage(section) {
     if (!db) await initFirebase();
     APP.storage.lastSyncedAt = Date.now();
     APP.storage.lastSyncedBy = APP.currentUser;
+    // Strip large base64 from product image arrays to keep payload under Firebase 10MB limit
+    // imgUrl (primary) is kept; only array duplicates are stripped
+    const storageToSave = JSON.parse(JSON.stringify(APP.storage));
+    if(storageToSave.products) {
+      storageToSave.products = storageToSave.products.map(p => {
+        const cleaned = {...p};
+        // Strip base64 from imgUrls array (keep URL-based ones)
+        if(cleaned.imgUrls) cleaned.imgUrls = cleaned.imgUrls.filter(u => u && !u.startsWith('data:'));
+        // Strip base64 from galleryImgs array
+        if(cleaned.galleryImgs) cleaned.galleryImgs = cleaned.galleryImgs.filter(u => u && !u.startsWith('data:'));
+        // If imgUrl is base64, keep it (it's the primary — small enough usually)
+        // But if it's very large (>500KB as base64), clear it to prevent failure
+        if(cleaned.imgUrl && cleaned.imgUrl.startsWith('data:') && cleaned.imgUrl.length > 500000) {
+          cleaned.imgUrl = ''; // too large, clear it
+        }
+        return cleaned;
+      });
+    }
     await db.ref(STORAGE_KEY).set({
-      payload: JSON.stringify(APP.storage),
+      payload: JSON.stringify(storageToSave),
       updatedAt: Date.now(),
       updatedBy: APP.currentUser || 'unknown'
     });
@@ -1932,6 +1950,45 @@ function renderProducts() {
         <button class="modal-close" onclick="closeModal('add-product-modal')">✕</button>
       </div>
       <div class="modal-body">
+
+        <!-- ══ AI SCREENSHOT SCANNER ══ -->
+        <div id="scan-zone" style="background:linear-gradient(135deg,rgba(155,93,229,.08),rgba(236,72,153,.06));border:2px dashed rgba(155,93,229,.35);border-radius:14px;padding:16px;margin-bottom:18px;text-align:center;transition:all .25s;">
+          <input type="file" id="scan-img-input" accept="image/*" style="display:none" onchange="scanProductImage(this)">
+          <div id="scan-idle">
+            <div style="font-size:2rem;margin-bottom:6px;">🤖</div>
+            <div style="font-size:0.92rem;font-weight:700;color:var(--purple);margin-bottom:4px;">AI Auto-Fill</div>
+            <div style="font-size:0.72rem;color:var(--text3);margin-bottom:12px;">Take a screenshot of any product page — Groq reads it and fills all fields automatically</div>
+            <button type="button" onclick="document.getElementById('scan-img-input').click()" class="btn btn-primary" style="background:linear-gradient(135deg,var(--purple),var(--pink));border:none;padding:10px 24px;font-size:0.85rem;">
+              📸 Scan Product Screenshot
+            </button>
+            <div style="font-size:0.65rem;color:var(--text3);margin-top:8px;">Works with Flipkart · Myntra · Amazon · Nykaa · Meesho · any platform</div>
+          </div>
+          <div id="scan-loading" style="display:none;">
+            <div style="font-size:2rem;margin-bottom:8px;animation:spin 1s linear infinite;">⟳</div>
+            <div style="font-size:0.88rem;font-weight:600;color:var(--purple);">Reading screenshot...</div>
+            <div style="font-size:0.7rem;color:var(--text3);margin-top:4px;">Groq is extracting product details</div>
+          </div>
+          <div id="scan-result" style="display:none;text-align:left;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="font-size:1.1rem;">✅</div>
+              <div style="font-size:0.82rem;font-weight:700;color:var(--green);">Details filled! Review and save.</div>
+              <button type="button" onclick="resetScanner()" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.75rem;">↺ Scan again</button>
+            </div>
+            <div id="scan-preview-text" style="font-size:0.7rem;color:var(--text2);line-height:1.7;background:var(--bg3);border-radius:8px;padding:8px 10px;"></div>
+          </div>
+          <div id="scan-error" style="display:none;">
+            <div style="font-size:1.1rem;margin-bottom:6px;">❌</div>
+            <div id="scan-error-msg" style="font-size:0.78rem;color:var(--red);"></div>
+            <button type="button" onclick="resetScanner()" style="margin-top:8px;background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 12px;font-size:0.72rem;cursor:pointer;color:var(--text2);">Try again</button>
+          </div>
+        </div>
+        <!-- ── divider ── -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-size:0.68rem;color:var(--text3);font-weight:600;letter-spacing:.06em;">OR FILL MANUALLY</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+
         <div class="form-row cols-2">
           <div><label>Product Name *</label><input type="text" id="p-name" placeholder="e.g. Lakme Face Serum"></div>
           <div><label>Price *</label><input type="text" id="p-price" placeholder="₹499"></div>
@@ -2092,12 +2149,199 @@ function showAddProduct() {
   ['p-name','p-price','p-disc','p-orig','p-link','p-img-url','p-rating','p-brand'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  setTimeout(resetScanner, 50); // reset scanner state
   syncRatingStars(0);
   window._modalGallery=[];
   const strip=document.getElementById('modal-gal-strip');if(strip)strip.innerHTML='';
   const cnt=document.getElementById('modal-gal-count');if(cnt)cnt.textContent='0 images';
   const prev=document.getElementById('p-img-preview');if(prev){prev.style.display='none';prev.src='';}
   openModal('add-product-modal');
+}
+
+/* ════════════════════════════════════════════════
+   🤖 AI SCREENSHOT SCANNER — Groq Vision Auto-Fill
+   ════════════════════════════════════════════════ */
+async function scanProductImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const groqKey = APP.storage.apis?.groq;
+  if (!groqKey || groqKey.length < 10) {
+    showScanError('No Groq API key found. Go to Settings → API Keys → add your Groq key (free at console.groq.com).');
+    return;
+  }
+
+  // Show loading
+  document.getElementById('scan-idle').style.display = 'none';
+  document.getElementById('scan-loading').style.display = 'block';
+  document.getElementById('scan-result').style.display = 'none';
+  document.getElementById('scan-error').style.display = 'none';
+
+  try {
+    // Convert image to base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = () => rej(new Error('Failed to read image'));
+      reader.readAsDataURL(file);
+    });
+
+    const mimeType = file.type || 'image/jpeg';
+
+    const prompt = `You are scanning a product screenshot from an Indian e-commerce website (Flipkart, Myntra, Amazon, Nykaa, Meesho, Ajio, Shopsy, The Man Company, etc).
+
+Extract ALL visible product details and return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
+
+{
+  "name": "full product name as shown",
+  "price": "sale price with ₹ symbol e.g. ₹499",
+  "originalPrice": "MRP/strikethrough price with ₹ e.g. ₹799 (empty string if not visible)",
+  "discount": "discount percentage as number only e.g. 30 (empty string if not visible)",
+  "rating": "numeric rating e.g. 4.2 (empty string if not visible)",
+  "brand": "brand name e.g. Lakme (empty string if not clear)",
+  "platform": "one of: Flipkart, Myntra, Amazon, Meesho, Ajio, Nykaa, Shopsy, The Man Company (guess from design/logo)",
+  "category": "one of: Fashion, Electronics, Beauty, Skincare, Makeup, Haircare, Jewellery, Wellness, Home, Grocery, Sports, Ethnic Wear, Sarees, Kurtis, Western Wear, Footwear, Accessories, Grooming, Beard Care, Face Care, Hair Care, Fragrance, Gift Sets, Bath & Body",
+  "imageUrl": "direct URL of the main product image if visible in the screenshot (empty string if not)"
+}`;
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64 } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      // If model doesn't support vision, try llama-3.2-11b-vision
+      if (res.status === 400 || res.status === 404) {
+        return scanWithFallbackModel(base64, mimeType, groqKey);
+      }
+      throw new Error('Groq error ' + res.status + ': ' + (err.error?.message || 'Unknown error'));
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    applyScannedData(text);
+
+  } catch (e) {
+    showScanError(e.message);
+  } finally {
+    input.value = ''; // reset file input so same file can be scanned again
+  }
+}
+
+async function scanWithFallbackModel(base64, mimeType, groqKey) {
+  // Try llama-3.2-11b-vision-preview as fallback
+  const prompt = `Scan this Indian e-commerce product screenshot. Return ONLY raw JSON (no markdown):
+{"name":"product name","price":"₹price","originalPrice":"₹mrp or empty","discount":"number or empty","rating":"number or empty","brand":"brand or empty","platform":"Flipkart/Myntra/Amazon/Meesho/Ajio/Nykaa/Shopsy/The Man Company","category":"Fashion/Electronics/Beauty/Skincare/Makeup/Haircare/Jewellery/Wellness/Home/Grocery/Sports/Ethnic Wear/Sarees/Kurtis/Western Wear/Footwear/Accessories/Grooming/Beard Care/Face Care/Hair Care/Fragrance/Gift Sets/Bath & Body","imageUrl":"url or empty"}`;
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
+      body: JSON.stringify({
+        model: 'llama-3.2-11b-vision-preview',
+        max_tokens: 400,
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64 } },
+          { type: 'text', text: prompt }
+        ]}]
+      })
+    });
+    if (!res.ok) throw new Error('Groq vision not available. Use llama-4-scout model.');
+    const data = await res.json();
+    applyScannedData(data.choices?.[0]?.message?.content || '');
+  } catch(e) {
+    showScanError(e.message);
+  }
+}
+
+function applyScannedData(text) {
+  try {
+    // Clean up response — strip markdown if present
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const d = JSON.parse(cleaned);
+
+    // Fill fields
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    set('p-name',  d.name);
+    set('p-price', d.price);
+    set('p-orig',  d.originalPrice);
+    set('p-disc',  d.discount);
+    set('p-brand', d.brand);
+    if (d.imageUrl) {
+      set('p-img-url', d.imageUrl);
+      const prev = document.getElementById('p-img-preview');
+      const lbl = document.getElementById('p-img-label');
+      if (prev) { prev.src = d.imageUrl; prev.style.display = 'block'; }
+      if (lbl) lbl.textContent = '✅ Image from screenshot';
+    }
+
+    // Rating — set numerically and sync stars
+    if (d.rating) {
+      set('p-rating', d.rating);
+      if (window.syncRatingStars) syncRatingStars(d.rating);
+    }
+
+    // Platform dropdown
+    if (d.platform) {
+      const plat = document.getElementById('p-plat');
+      if (plat) {
+        const opt = [...plat.options].find(o => o.value.toLowerCase() === d.platform.toLowerCase());
+        if (opt) plat.value = opt.value;
+      }
+    }
+
+    // Category dropdown
+    if (d.category) {
+      const cat = document.getElementById('p-cat');
+      if (cat) {
+        const opt = [...cat.options].find(o => o.value.toLowerCase() === d.category.toLowerCase());
+        if (opt) cat.value = opt.value;
+      }
+    }
+
+    // Show success with preview text
+    const preview = [];
+    if (d.name) preview.push('📦 ' + d.name);
+    if (d.price) preview.push('💰 ' + d.price + (d.originalPrice ? ' (was ' + d.originalPrice + ')' : ''));
+    if (d.platform) preview.push('🏪 ' + d.platform);
+    if (d.category) preview.push('🏷️ ' + d.category);
+    if (d.rating) preview.push('⭐ ' + d.rating + ' rating');
+    if (d.brand) preview.push('🎯 ' + d.brand);
+
+    document.getElementById('scan-preview-text').innerHTML = preview.join('<br>');
+    document.getElementById('scan-loading').style.display = 'none';
+    document.getElementById('scan-result').style.display = 'block';
+    showToast('✅ Auto-filled! Add affiliate link and save.', 'success');
+
+  } catch (e) {
+    showScanError('Could not read product details from screenshot. Try a clearer screenshot.');
+  }
+}
+
+function showScanError(msg) {
+  document.getElementById('scan-loading').style.display = 'none';
+  document.getElementById('scan-idle').style.display = 'none';
+  document.getElementById('scan-error').style.display = 'block';
+  document.getElementById('scan-error-msg').textContent = msg;
+}
+
+function resetScanner() {
+  document.getElementById('scan-idle').style.display = 'block';
+  document.getElementById('scan-loading').style.display = 'none';
+  document.getElementById('scan-result').style.display = 'none';
+  document.getElementById('scan-error').style.display = 'none';
+  document.getElementById('scan-img-input').value = '';
 }
 
 function saveProduct() {
@@ -2127,6 +2371,7 @@ function saveProduct() {
     imgUrls: allImgUrls,                              // ALL images for customer site gallery
     galleryImgs: galleryImgs,                         // keep original for hub use
     active: true,
+    websiteVisible: true,                             // ← always visible on customer site
     addedAt: Date.now()
   };
   APP.storage.products = APP.storage.products || [];
@@ -5168,6 +5413,7 @@ const WM_PLATFORMS = {
   Meesho:         { color:'#9B26AF', text:'#fff',    emoji:'🎀', cats:['Sarees','Kurtis','Jewellery','Western Wear','Home Decor','Bags','Kids Wear','Mens Wear','Footwear','Accessories'] },
   Ajio:           { color:'#E8001C', text:'#fff',    emoji:'🔴', cats:['Mens','Womens','Kids','Footwear','Activewear','Luxe','New Arrivals','Western','Ethnic','Accessories'] },
   Nykaa:          { color:'#FC2779', text:'#fff',    emoji:'💗', cats:['Skincare','Makeup','Haircare','Fragrance','Wellness','Bath & Body','Mens Grooming','Nail Care','Tools','Gifts'] },
+  Shopsy:         { color:'#F8D000', text:'#1E1B18', emoji:'☀️', cats:['Fashion','Electronics','Home','Trending','Budget Deals','Womens Fashion','Kids','Grocery','Beauty','Sports'] },
   'The Man Company':{ color:'#C9A84C', text:'#fff',  emoji:'♟', cats:['Beard Care','Face Care','Hair Care','Body Care','Fragrance','Grooming Kits','Gift Sets','Accessories','Wellness','Shaving'] },
 };
 
