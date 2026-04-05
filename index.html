@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5501,11 +5502,27 @@ function renderWmProducts() {
   <div style="background:var(--bg2);border:1.5px solid ${platInfo.color};border-radius:14px;padding:18px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <div style="width:34px;height:34px;border-radius:10px;background:${platInfo.color};display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">${platInfo.emoji}</div>
-      <div>
+      <div style="flex:1;">
         <div style="font-size:0.88rem;font-weight:700;">Add ${activePlatform} Product</div>
         <div style="font-size:0.68rem;color:var(--text3);">Click <strong>+ Add Product</strong> next to any platform below to switch</div>
       </div>
+      <button onclick="document.getElementById('wm-scan-input').click()" title="AI Auto-Fill from screenshot"
+        style="padding:6px 12px;background:linear-gradient(135deg,var(--purple),var(--pink));border:none;border-radius:8px;color:#fff;font-size:0.72rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;">
+        🤖 Scan Screenshot
+      </button>
+      <input type="file" id="wm-scan-input" accept="image/*" style="display:none" onchange="wmScanProductImage(this)">
     </div>
+
+    <!-- WM Scanner status bar (hidden by default) -->
+    <div id="wm-scan-bar" style="display:none;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:12px;background:rgba(155,93,229,.07);border:1px solid rgba(155,93,229,.2);">
+      <span id="wm-scan-icon" style="font-size:1.2rem;">⟳</span>
+      <div style="flex:1;">
+        <div id="wm-scan-msg" style="font-size:0.75rem;font-weight:600;color:var(--purple);">Reading screenshot...</div>
+        <div id="wm-scan-sub" style="font-size:0.65rem;color:var(--text3);margin-top:1px;"></div>
+      </div>
+      <button onclick="wmResetWMScanner()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.75rem;">✕</button>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="wm-field" style="grid-column:1/-1"><label>Product Name *</label>
         <input type="text" id="wm-p-name" placeholder="e.g. Lakme 9to5 Face Serum 50ml">
@@ -5607,6 +5624,7 @@ function wmSaveProduct() {
   const wmAllImgUrls = [];
   if (wmSingleImg && wmSingleImg.length > 5) wmAllImgUrls.push(wmSingleImg);
   wmGalleryImgs.forEach(u => { if (u && u.length > 5 && !wmAllImgUrls.includes(u)) wmAllImgUrls.push(u); });
+  const wmPrimaryImg = wmSingleImg || (wmGalleryImgs[0]||'');
 
   const prod = {
     id: 'prod_'+Date.now(),
@@ -5619,8 +5637,8 @@ function wmSaveProduct() {
     rating:    document.getElementById('wm-p-rating')?.value?.trim()||'',
     brand:     document.getElementById('wm-p-brand')?.value?.trim()||'',
     affiliateLink: link,
-    imgUrl:    wmSingleImg || (wmGalleryImgs[0]||''),
-    imgUrls:   wmAllImgUrls,
+    imgUrl:    wmPrimaryImg,
+    imgUrls:   wmAllImgUrls.length ? wmAllImgUrls : (wmPrimaryImg ? [wmPrimaryImg] : []),
     galleryImgs: wmGalleryImgs,
     active: true, websiteVisible: true,
     addedAt: Date.now()
@@ -5648,6 +5666,7 @@ function wmSaveProductOnly() {
   const wmAllImgUrls2 = [];
   if (wmSingleImg2 && wmSingleImg2.length > 5) wmAllImgUrls2.push(wmSingleImg2);
   wmGalleryImgs2.forEach(u => { if (u && u.length > 5 && !wmAllImgUrls2.includes(u)) wmAllImgUrls2.push(u); });
+  const wmPrimaryImg2 = wmSingleImg2 || (wmGalleryImgs2[0]||'');
 
   const prod = {
     id: 'prod_'+Date.now(),
@@ -5660,8 +5679,8 @@ function wmSaveProductOnly() {
     rating:    document.getElementById('wm-p-rating')?.value?.trim()||'',
     brand:     document.getElementById('wm-p-brand')?.value?.trim()||'',
     affiliateLink: link,
-    imgUrl:    wmSingleImg2 || (wmGalleryImgs2[0]||''),
-    imgUrls:   wmAllImgUrls2,
+    imgUrl:    wmPrimaryImg2,
+    imgUrls:   wmAllImgUrls2.length ? wmAllImgUrls2 : (wmPrimaryImg2 ? [wmPrimaryImg2] : []),
     galleryImgs: wmGalleryImgs2,
     active: true,
     websiteVisible: false,  // Hidden from customer website
@@ -5675,6 +5694,115 @@ function wmSaveProductOnly() {
   showToast('💾 Saved to hub!','info',name+' is hidden from website. Toggle to publish anytime.');
   wmClearForm();
   wmSwitch('products');
+}
+
+/* ══════════════════════════════════════════════════
+   🤖 WM Screenshot Scanner
+══════════════════════════════════════════════════ */
+async function wmScanProductImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const groqKey = APP.storage.apis?.groq;
+  if (!groqKey || groqKey.length < 10) {
+    showToast('⚠️ No Groq API key — go to ✨ AI Studio tab to add your key','warning');
+    return;
+  }
+
+  // Show loading bar
+  const bar = document.getElementById('wm-scan-bar');
+  const msg = document.getElementById('wm-scan-msg');
+  const sub = document.getElementById('wm-scan-sub');
+  const icon = document.getElementById('wm-scan-icon');
+  if(bar) { bar.style.display='flex'; }
+  if(msg) msg.textContent = 'Reading screenshot...';
+  if(sub) sub.textContent = 'Groq is extracting product details';
+  if(icon) icon.style.animation = 'spin 1s linear infinite';
+
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = () => rej(new Error('Failed to read image'));
+      reader.readAsDataURL(file);
+    });
+    const mimeType = file.type || 'image/jpeg';
+
+    const prompt = `Scan this Indian e-commerce product screenshot. Return ONLY raw JSON (no markdown, no explanation):
+{"name":"full product name","price":"₹price","originalPrice":"₹mrp or empty string","discount":"number only or empty string","rating":"number like 4.2 or empty string","brand":"brand name or empty string","platform":"one of: Flipkart/Myntra/Amazon/Meesho/Ajio/Nykaa/Shopsy/The Man Company","category":"one of: Fashion/Electronics/Beauty/Skincare/Makeup/Haircare/Jewellery/Wellness/Home/Grocery/Sports/Ethnic Wear/Sarees/Kurtis/Western Wear/Footwear/Accessories/Grooming/Beard Care/Face Care/Hair Care/Fragrance/Gift Sets/Bath & Body","imageUrl":"product image URL if visible in screenshot or empty string"}`;
+
+    // Try Llama 4 Scout first, fallback to 3.2 vision
+    let data = null;
+    for(const model of ['meta-llama/llama-4-scout-17b-16e-instruct','llama-3.2-11b-vision-preview']){
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+        body:JSON.stringify({
+          model,
+          max_tokens:400,
+          messages:[{role:'user',content:[
+            {type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64}},
+            {type:'text',text:prompt}
+          ]}]
+        })
+      });
+      if(res.ok){ data=await res.json(); break; }
+    }
+
+    if(!data) throw new Error('Groq vision unavailable. Make sure your key has vision access.');
+    const text = data.choices?.[0]?.message?.content||'';
+    const d = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    // Fill WM fields
+    const setWM = (id, val) => { const el=document.getElementById(id); if(el&&val) el.value=val; };
+    setWM('wm-p-name',  d.name);
+    setWM('wm-p-price', d.price);
+    setWM('wm-p-orig',  d.originalPrice);
+    setWM('wm-p-disc',  d.discount);
+    setWM('wm-p-brand', d.brand);
+    setWM('wm-p-img',   d.imageUrl);
+    if(d.rating) { setWM('wm-p-rating', d.rating); wmSyncRatingStars && wmSyncRatingStars(d.rating); }
+
+    // Platform dropdown
+    if(d.platform){
+      const plat=document.getElementById('wm-p-cat');
+      // Switch active platform if detected
+      const matched = Object.keys(WM_PLATFORMS).find(k=>k.toLowerCase()===d.platform.toLowerCase());
+      if(matched){ window._wmAddPlatform=matched; }
+    }
+
+    // Category dropdown
+    if(d.category){
+      const cat=document.getElementById('wm-p-cat');
+      if(cat){
+        const opt=[...cat.options].find(o=>o.value.toLowerCase()===d.category.toLowerCase());
+        if(opt) cat.value=opt.value;
+      }
+    }
+
+    // Show success
+    if(icon){ icon.textContent='✅'; icon.style.animation='none'; }
+    if(msg) msg.textContent='Auto-filled! Add affiliate link and save.';
+    const fields=[];
+    if(d.name) fields.push(d.name.slice(0,30));
+    if(d.price) fields.push(d.price);
+    if(d.platform) fields.push(d.platform);
+    if(sub) sub.textContent = fields.join(' · ');
+    showToast('✅ Screenshot scanned — fields filled!','success');
+
+  } catch(e) {
+    if(icon){ icon.textContent='❌'; icon.style.animation='none'; }
+    if(msg) msg.textContent = 'Scan failed';
+    if(sub) sub.textContent = e.message.slice(0,80);
+    showToast('❌ Scan failed: '+e.message.slice(0,60),'error');
+  } finally {
+    input.value='';
+  }
+}
+
+function wmResetWMScanner(){
+  const bar=document.getElementById('wm-scan-bar');
+  if(bar) bar.style.display='none';
 }
 
 function wmClearForm() {
